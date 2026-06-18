@@ -9,7 +9,7 @@ import {
   FacebookAuthProvider,
   signInWithEmailAndPassword,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase/auth";
+import { auth } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
 import {
   Wheat,
@@ -25,9 +25,9 @@ export default function LoginPage() {
   const { setUser, setLoading } = useAuthStore();
   const [error, setError] = useState("");
   const [loading, setLocalLoading] = useState(false);
+  const [redirectChecking, setRedirectChecking] = useState(true);
 
   useEffect(() => {
-    setLocalLoading(true);
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
@@ -35,11 +35,12 @@ export default function LoginPage() {
           router.push("/overview");
         }
       })
-      .catch(() => {
-        setError("Sign-in failed. Please try again.");
+      .catch((error) => {
+        console.error("Redirect error:", error);
+        setError("Login failed. Please try again.");
       })
       .finally(() => {
-        setLocalLoading(false);
+        setRedirectChecking(false);
       });
   }, []);
 
@@ -112,6 +113,14 @@ export default function LoginPage() {
       {/* White Bottom Section */}
       <div className="flex-1 bg-white rounded-t-3xl -mt-4 px-6 pt-8 pb-10">
 
+        {/* Redirect Checking Spinner — shown instead of buttons */}
+        {redirectChecking ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <Loader2 className="animate-spin" size={36} color="#1B5E20" />
+            <p className="text-gray-400 text-sm">Signing you in…</p>
+          </div>
+        ) : (
+          <>
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">
@@ -229,6 +238,8 @@ export default function LoginPage() {
         <p className="text-center text-gray-300 text-xs mt-8">
           FaslBook V2 • Farm Operating System
         </p>
+          </>
+        )}
       </div>
     </div>
   );
