@@ -1,6 +1,6 @@
-# [Project name]
+# Faslbook v2
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A farm management web app for tracking parcels, crops, inventory, farmers, workers, dealers, finances, and loans.
 
 ## Run & Operate
 
