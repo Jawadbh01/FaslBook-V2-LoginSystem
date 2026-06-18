@@ -73,7 +73,7 @@ export default function LoginPage() {
   };
 
   const handleEmail = () => {
-    router.push("/auth/email");
+    router.push("/email");
   };
 
   return (
@@ -170,25 +170,20 @@ export default function LoginPage() {
             </span>
           </button>
 
-          {/* Phone OTP */}
+          {/* Phone OTP — disabled */}
           <button
-            onClick={handlePhone}
-            disabled={loading}
-            className="flex items-center gap-3 w-full border-2 rounded-2xl px-5 py-4 active:scale-95 transition-transform"
-            style={{ borderColor: "#1B5E20" }}
+            disabled
+            className="flex items-center gap-3 w-full border-2 border-gray-200 rounded-2xl px-5 py-4 opacity-50 cursor-not-allowed"
           >
-            <div
-              className="rounded-full p-2"
-              style={{ backgroundColor: "#E8F5E9" }}
-            >
-              <Phone size={22} color="#1B5E20" />
+            <div className="rounded-full p-2 bg-gray-100">
+              <Phone size={22} color="#9CA3AF" />
             </div>
-            <span
-              className="font-semibold text-base"
-              style={{ color: "#1B5E20" }}
-            >
-              Continue with Phone (OTP)
-            </span>
+            <div className="flex flex-col items-start">
+              <span className="font-semibold text-base text-gray-400">
+                Continue with Phone (OTP)
+              </span>
+              <span className="text-xs text-gray-400">Not available right now</span>
+            </div>
           </button>
 
           {/* Email */}
@@ -220,16 +215,16 @@ export default function LoginPage() {
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        {/* Create Organization */}
+        {/* Create Farm */}
         <div className="text-center">
           <p className="text-gray-500 text-sm">
             New to FaslBook?{" "}
             <button
-              onClick={() => router.push("/auth/register")}
+              onClick={() => router.push("/register")}
               className="font-bold"
               style={{ color: "#1B5E20" }}
             >
-              Create Organization
+              Create Farm
             </button>
           </p>
         </div>
