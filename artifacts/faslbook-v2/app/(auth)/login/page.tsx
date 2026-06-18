@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   FacebookAuthProvider,
   signInWithEmailAndPassword,
@@ -25,17 +26,31 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLocalLoading] = useState(false);
 
+  useEffect(() => {
+    setLocalLoading(true);
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          setUser(result.user);
+          router.push("/overview");
+        }
+      })
+      .catch(() => {
+        setError("Sign-in failed. Please try again.");
+      })
+      .finally(() => {
+        setLocalLoading(false);
+      });
+  }, []);
+
   const handleGoogle = async () => {
     try {
       setLocalLoading(true);
       setError("");
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      setUser(result.user);
-      router.push("/overview");
+      await signInWithRedirect(auth, provider);
     } catch (err: any) {
       setError("Google login failed. Please try again.");
-    } finally {
       setLocalLoading(false);
     }
   };
@@ -45,12 +60,9 @@ export default function LoginPage() {
       setLocalLoading(true);
       setError("");
       const provider = new FacebookAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      setUser(result.user);
-      router.push("/overview");
+      await signInWithRedirect(auth, provider);
     } catch (err: any) {
       setError("Facebook login failed. Please try again.");
-    } finally {
       setLocalLoading(false);
     }
   };
