@@ -1,0 +1,53 @@
+Fix all authentication and routing issues in FaslBook. Here are the exact problems and fixes needed:
+
+PROBLEM 1 - Google Login not redirecting to dashboard:
+In components/shared/AuthProvider.tsx, the onAuthStateChanged is only wrapping dashboard routes but Google redirect result is not being caught properly. Fix:
+- Move AuthProvider to app/layout.tsx so it wraps the ENTIRE app
+- In AuthProvider, after onAuthStateChanged fires with a user, check Firestore users collection for that uid
+- If user document exists and has organizationId, redirect to /overview
+- If user document exists but no organizationId, redirect to /create-farm  
+- If user document does not exist (new Google user), create the user document in Firestore users collection with name, email, photoUrl from Firebase user, then redirect to /create-farm
+- If no user logged in, redirect to /login
+
+PROBLEM 2 - Email login saying "already registered" error:
+The error code handling is wrong. Fix email login in app/(auth)/email/page.tsx:
+- Remove setUser call after login - let AuthProvider handle routing
+- Fix error codes: use auth/invalid-credential instead of auth/user-not-found for newer Firebase versions
+- After successful signInWithEmailAndPassword just show loading spinner and let AuthProvider redirect automatically
+
+PROBLEM 3 - Register saying email already registered when it is not:
+In app/(auth)/register/page.tsx:
+- After createUserWithEmailAndPassword succeeds, save user to Firestore
+- Do NOT call router.push manually - let AuthProvider handle redirect to /create-farm automatically
+- Fix error handling to properly show different errors
+
+PROBLEM 4 - Create Farm not working:
+In app/(auth)/create-farm/page.tsx:
+- Use auth.currentUser to get current user
+- Generate orgId using doc(collection(db, "organizations")).id
+- Save organization to Firestore organizations collection
+- Update user document in Firestore users collection with organizationId and role landlord
+- After success show Farm ID screen with copy button
+- Then redirect to /overview
+
+PROBLEM 5 - AuthProvider blocking all pages:
+- Remove AuthProvider from app/(dashboard)/layout.tsx
+- Add AuthProvider to app/layout.tsx wrapping all children
+- AuthProvider should handle routing for entire app not just dashboard
+
+PROBLEM 6 - Routing paths wrong:
+Make sure these routes exist and work:
+- /login → app/(auth)/login/page.tsx
+- /email → app/(auth)/email/page.tsx  
+- /register → app/(auth)/register/page.tsx
+- /create-farm → app/(auth)/create-farm/page.tsx
+- /overview → app/(dashboard)/overview/page.tsx
+
+Fix all these issues. The core logic should be:
+1. User opens app
+2. AuthProvider checks Firebase auth state
+3. If logged in and has org → /overview
+4. If logged in and no org → /create-farm
+5. If not logged in → /login
+6. All login methods (Google, Email) trigger onAuthStateChanged automatically
+7. AuthProvider handles ALL redirects, no manual router.push after auth calls

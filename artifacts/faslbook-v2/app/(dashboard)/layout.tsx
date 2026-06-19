@@ -1,4 +1,3 @@
-import AuthProvider from "@/components/shared/AuthProvider";
 import BottomNav from "@/components/shared/BottomNav";
 import TopBar from "@/components/shared/TopBar";
 
@@ -8,12 +7,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AuthProvider>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <TopBar />
-        <main className="flex-1 pb-20 overflow-y-auto">{children}</main>
-        <BottomNav />
-      </div>
-    </AuthProvider>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <TopBar />
+      <main className="flex-1 pb-20 overflow-y-auto">{children}</main>
+      <BottomNav />
+    </div>
   );
 }

@@ -1,1 +1,6 @@
-{}
+{
+  "lib/firebase/config.ts -> firebase/firestore": {
+    "id": "lib/firebase/config.ts -> firebase/firestore",
+    "files": []
+  }
+}

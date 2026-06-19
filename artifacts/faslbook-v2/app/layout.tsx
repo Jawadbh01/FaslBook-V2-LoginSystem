@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AuthProvider from "@/components/shared/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "Faslbook",
-  description: "Farm management application",
+  title: "FaslBook",
+  description: "Farm Operating System",
 };
 
 export default function RootLayout({
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }
