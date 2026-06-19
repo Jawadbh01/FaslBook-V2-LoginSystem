@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "bash"]
+modules = ["nodejs-20", "web", "bash", "python-3.11"]
 
 [deployment]
 router = "application"
@@ -25,12 +25,12 @@ name = "faslbook-v2"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "webview"
+outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/faslbook-v2 run dev"
-waitForPort = 5000
+waitForPort = 3000
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
@@ -42,7 +42,15 @@ timeoutMs = 20000
 
 [[ports]]
 localPort = 3000
+externalPort = 3000
+
+[[ports]]
+localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 8000
+externalPort = 8099
 
 [[ports]]
 localPort = 8080
@@ -91,10 +99,6 @@ externalPort = 6000
 [[ports]]
 localPort = 8091
 externalPort = 4200
-
-[[ports]]
-localPort = 5000
-externalPort = 80
 
 [nix]
 channel = "stable-25_05"
