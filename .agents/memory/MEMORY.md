@@ -1,0 +1,1 @@
+- [Port 5000 webview rule](port-5000-webview-rule.md) — Next.js must bind to port 5000; webview workflow type releases it; console type causes 502.
