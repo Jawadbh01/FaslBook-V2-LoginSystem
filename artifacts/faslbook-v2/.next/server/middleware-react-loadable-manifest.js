@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"app/(auth)/join-farm/page.tsx -> @/store/authStore\":{\"id\":\"app/(auth)/join-farm/page.tsx -> @/store/authStore\",\"files\":[]}}"
