@@ -25,22 +25,33 @@ export default function EmailLoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       // AuthProvider onAuthStateChanged handles redirect automatically
     } catch (err: any) {
+      console.error("Login error:", err.code, err.message);
+      const code = err.code ?? "";
       if (
-        err.code === "auth/user-not-found" ||
-        err.code === "auth/invalid-credential"
+        code === "auth/user-not-found" ||
+        code === "auth/invalid-credential" ||
+        code === "auth/invalid-email"
       ) {
-        setError("No account found. Please check email and password.");
-      } else if (err.code === "auth/wrong-password") {
-        setError("Incorrect password");
-      } else if (err.code === "auth/invalid-email") {
-        setError("Invalid email address");
-      } else if (err.code === "auth/too-many-requests") {
-        setError("Too many attempts. Please try again later.");
+        setError("Incorrect email or password. Please try again.");
+      } else if (code === "auth/wrong-password") {
+        setError("Incorrect password. Please try again.");
+      } else if (code === "auth/too-many-requests") {
+        setError("Too many attempts. Account temporarily locked. Try again later.");
+      } else if (code === "auth/user-disabled") {
+        setError("This account has been disabled. Contact support.");
+      } else if (code === "auth/operation-not-allowed") {
+        setError("Email login is not enabled. Please use Google login or contact support.");
+      } else if (code === "auth/network-request-failed") {
+        setError("Network error. Check your internet connection and try again.");
       } else {
-        setError("Login failed. Please try again.");
+        setError(`Login failed (${code || err.message}). Please try again.`);
       }
       setLoading(false);
     }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleLogin();
   };
 
   return (
@@ -81,7 +92,9 @@ export default function EmailLoginPage() {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="flex-1 outline-none text-gray-800 text-base bg-transparent"
+              autoComplete="email"
             />
           </div>
         </div>
@@ -98,9 +111,15 @@ export default function EmailLoginPage() {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="flex-1 outline-none text-gray-800 text-base bg-transparent"
+              autoComplete="current-password"
             />
-            <button onClick={() => setShowPassword(!showPassword)}>
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="ml-2"
+            >
               {showPassword
                 ? <EyeOff size={20} color="#9E9E9E" />
                 : <Eye size={20} color="#9E9E9E" />
@@ -121,7 +140,7 @@ export default function EmailLoginPage() {
         <button
           onClick={handleLogin}
           disabled={loading}
-          className="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2"
+          className="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 disabled:opacity-60"
           style={{ backgroundColor: "#1B5E20" }}
         >
           {loading
