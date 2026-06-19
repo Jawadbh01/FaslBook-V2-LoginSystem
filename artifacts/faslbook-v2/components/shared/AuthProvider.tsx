@@ -5,7 +5,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
 
-const PUBLIC_ROUTES = ["/login", "/email", "/register", "/create-farm"];
+const PUBLIC_ROUTES = ["/login", "/email", "/register", "/create-farm", "/role-select", "/join-farm", "/pending"];
 
 function isPublicPath(path: string) {
   return PUBLIC_ROUTES.some((r) => path === r || path.startsWith(r + "/"));
@@ -82,7 +82,14 @@ export default function AuthProvider({
           // Logged in but no org
           setLoading(false);
           setReady(true);
-          if (currentPath !== "/create-farm") navigate("/create-farm");
+          const role = userData.role;
+          if (role === "landlord") {
+            if (currentPath !== "/create-farm") navigate("/create-farm");
+          } else {
+            if (currentPath !== "/join-farm" && currentPath !== "/pending") {
+              navigate("/join-farm");
+            }
+          }
         } else {
           // Not logged in
           setUser(null);

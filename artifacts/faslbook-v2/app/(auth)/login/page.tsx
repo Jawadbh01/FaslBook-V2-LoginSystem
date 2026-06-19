@@ -172,7 +172,7 @@ export default function LoginPage() {
           <p className="text-gray-500 text-sm">
             New to FaslBook?{" "}
             <button
-              onClick={() => router.push("/register")}
+              onClick={() => router.push("/role-select")}
               className="font-bold"
               style={{ color: "#1B5E20" }}
             >
