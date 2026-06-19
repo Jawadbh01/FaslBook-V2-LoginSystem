@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     "*.sisko.replit.dev",
     "*.replit.dev",
     "*.repl.co",
+    "*.replit.app",
   ],
 };
 
