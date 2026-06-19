@@ -1,43 +1,29 @@
 "use client";
-
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
 
-const PUBLIC_PATHS = ["/login", "/email", "/register", "/create-farm"];
+const PUBLIC_ROUTES = ["/login", "/email", "/register", "/create-farm"];
 
-function isPublic(path: string) {
-  return PUBLIC_PATHS.some((p) => path.startsWith(p));
-}
-
-export default function AuthProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { setUser, setOrganization, setRole, setLoading, loading } =
-    useAuthStore();
+  const pathname = usePathname();
+  const { setUser, setOrganization, setRole, setLoading, loading } = useAuthStore();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Subscribe only once — read current path at callback time via window.location
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      const currentPath = window.location.pathname;
-      const onPublic = isPublic(currentPath);
+      try {
+        if (firebaseUser) {
+          setUser(firebaseUser);
+          const userRef = doc(db, "users", firebaseUser.uid);
+          const userSnap = await getDoc(userRef);
 
-      if (firebaseUser) {
-        setUser(firebaseUser);
-
-        try {
-          const userDocRef = doc(db, "users", firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
-
-          if (!userDoc.exists()) {
-            // New social login user — create Firestore doc
-            await setDoc(userDocRef, {
+          if (!userSnap.exists()) {
+            await setDoc(userRef, {
               id: firebaseUser.uid,
               name: firebaseUser.displayName || "",
               email: firebaseUser.email || "",
@@ -50,51 +36,53 @@ export default function AuthProvider({
               updatedAt: serverTimestamp(),
               syncStatus: "synced",
             });
+            setReady(true);
             setLoading(false);
             router.replace("/create-farm");
             return;
           }
 
-          const userData = userDoc.data();
+          const userData = userSnap.data();
           setRole(userData.role);
 
           if (userData.organizationId) {
-            const orgDoc = await getDoc(
-              doc(db, "organizations", userData.organizationId)
-            );
-            if (orgDoc.exists()) {
-              setOrganization(orgDoc.data() as any);
+            const orgSnap = await getDoc(doc(db, "organizations", userData.organizationId));
+            if (orgSnap.exists()) {
+              setOrganization(orgSnap.data() as any);
+              setReady(true);
               setLoading(false);
-              if (onPublic) router.replace("/overview");
+              if (PUBLIC_ROUTES.includes(pathname)) {
+                router.replace("/overview");
+              }
               return;
             }
           }
 
-          // Logged in but no org
+          setReady(true);
           setLoading(false);
-          if (currentPath !== "/create-farm") {
-            router.replace("/create-farm");
+          router.replace("/create-farm");
+
+        } else {
+          setUser(null);
+          setOrganization(null);
+          setRole(null);
+          setReady(true);
+          setLoading(false);
+          if (!PUBLIC_ROUTES.includes(pathname)) {
+            router.replace("/login");
           }
-        } catch (error) {
-          console.error("Auth check error:", error);
-          setLoading(false);
         }
-      } else {
-        // Not logged in
-        setUser(null);
-        setOrganization(null);
-        setRole(null);
+      } catch (error) {
+        console.error("Auth error:", error);
+        setReady(true);
         setLoading(false);
-        if (!onPublic) {
-          router.replace("/login");
-        }
       }
     });
 
     return () => unsubscribe();
-  }, []); // ← empty array: subscribe once, never re-subscribe on path changes
+  }, []);
 
-  if (loading) {
+  if (!ready) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4">
         <div
