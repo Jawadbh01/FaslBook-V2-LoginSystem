@@ -34,35 +34,46 @@ export default function RegisterPage() {
       setError("Passwords do not match");
       return;
     }
+
     try {
       setLoading(true);
       setError("");
-      const result = await createUserWithEmailAndPassword(
-        auth, email, password
-      );
 
-      await setDoc(doc(db, "users", result.user.uid), {
-        id: result.user.uid,
-        name,
-        email,
-        phone,
-        photoUrl: "",
-        role: null,
-        organizationId: null,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        syncStatus: "synced",
-      });
+      // Step 1: Create Firebase Auth user
+      const result = await createUserWithEmailAndPassword(auth, email, password);
 
-      // AuthProvider onAuthStateChanged will redirect to /create-farm
+      // Step 2: Write Firestore user doc — if this fails, AuthProvider will
+      // detect the missing doc via onAuthStateChanged and create it automatically
+      try {
+        await setDoc(doc(db, "users", result.user.uid), {
+          id: result.user.uid,
+          name,
+          email,
+          phone,
+          photoUrl: "",
+          role: null,
+          organizationId: null,
+          status: "pending",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          syncStatus: "synced",
+        });
+      } catch (firestoreErr) {
+        // Auth succeeded — AuthProvider's onAuthStateChanged will handle
+        // doc creation automatically. Don't show error to user.
+        console.warn("Firestore user doc write failed (will retry via AuthProvider):", firestoreErr);
+      }
+
+      // Auth state change fires → AuthProvider redirects to /create-farm
     } catch (err: any) {
       if (err.code === "auth/email-already-in-use") {
         setError("Email already registered. Please login.");
       } else if (err.code === "auth/invalid-email") {
         setError("Invalid email address");
+      } else if (err.code === "auth/weak-password") {
+        setError("Password must be at least 6 characters");
       } else {
-        setError("Registration failed. Please try again.");
+        setError(`Registration failed: ${err.message || err.code || "Please try again."}`);
       }
       setLoading(false);
     }
@@ -91,6 +102,13 @@ export default function RegisterPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-5">
             {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex items-center justify-center gap-2 mb-5 text-green-700">
+            <Loader2 size={18} className="animate-spin" />
+            <span className="text-sm">Creating your account...</span>
           </div>
         )}
 
@@ -185,11 +203,10 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* Submit */}
         <button
           onClick={handleRegister}
           disabled={loading}
-          className="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2"
+          className="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 disabled:opacity-60"
           style={{ backgroundColor: "#1B5E20" }}
         >
           {loading

@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   doc, setDoc, updateDoc,
   serverTimestamp, collection
 } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
-import { auth } from "@/lib/firebase/config";
+import { db, auth } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
 import { Wheat, MapPin, ArrowLeft, Loader2, Copy, Check } from "lucide-react";
 
@@ -20,8 +18,16 @@ const generateFarmId = () => {
   return result;
 };
 
+const provinces = [
+  "Punjab",
+  "Sindh",
+  "Khyber Pakhtunkhwa",
+  "Balochistan",
+  "Gilgit-Baltistan",
+  "Azad Kashmir",
+];
+
 export default function CreateFarmPage() {
-  const router = useRouter();
   const { setOrganization } = useAuthStore();
   const [farmName, setFarmName] = useState("");
   const [village, setVillage] = useState("");
@@ -31,15 +37,6 @@ export default function CreateFarmPage() {
   const [error, setError] = useState("");
   const [createdFarmId, setCreatedFarmId] = useState("");
   const [copied, setCopied] = useState(false);
-
-  const provinces = [
-    "Punjab",
-    "Sindh",
-    "Khyber Pakhtunkhwa",
-    "Balochistan",
-    "Gilgit-Baltistan",
-    "Azad Kashmir",
-  ];
 
   const handleCopy = () => {
     navigator.clipboard.writeText(createdFarmId);
@@ -56,7 +53,7 @@ export default function CreateFarmPage() {
     const user = auth.currentUser;
     if (!user) {
       setError("Session expired. Please login again.");
-      router.push("/login");
+      window.location.replace("/login");
       return;
     }
 
@@ -84,10 +81,8 @@ export default function CreateFarmPage() {
         },
       };
 
-      // Create organization in Firestore
       await setDoc(orgRef, orgData);
 
-      // Update user document
       await updateDoc(doc(db, "users", user.uid), {
         organizationId: orgRef.id,
         role: "landlord",
@@ -98,15 +93,15 @@ export default function CreateFarmPage() {
       setOrganization(orgData as any);
       setCreatedFarmId(farmId);
 
-    } catch (err) {
-      console.error(err);
-      setError("Failed to create farm. Please try again.");
+    } catch (err: any) {
+      console.error("Create farm error:", err);
+      setError(`Failed to create farm: ${err?.message || "Please try again."}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Success screen after farm created
+  // Success screen — use window.location.href for guaranteed navigation
   if (createdFarmId) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
@@ -150,8 +145,9 @@ export default function CreateFarmPage() {
           </button>
         </div>
 
+        {/* Hard navigation — guaranteed to work */}
         <button
-          onClick={() => router.push("/overview")}
+          onClick={() => { window.location.href = "/overview"; }}
           className="w-full py-4 rounded-2xl text-white font-bold text-base"
           style={{ backgroundColor: "#1B5E20" }}
         >
@@ -169,7 +165,7 @@ export default function CreateFarmPage() {
         style={{ backgroundColor: "#1B5E20" }}
       >
         <button
-          onClick={() => router.back()}
+          onClick={() => window.history.back()}
           className="text-white mb-4 block"
         >
           <ArrowLeft size={24} />
@@ -265,11 +261,10 @@ export default function CreateFarmPage() {
           </div>
         </div>
 
-        {/* Create Button */}
         <button
           onClick={handleCreate}
           disabled={loading}
-          className="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2"
+          className="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 disabled:opacity-60"
           style={{ backgroundColor: "#1B5E20" }}
         >
           {loading
