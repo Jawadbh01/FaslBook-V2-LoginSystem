@@ -6,11 +6,12 @@ import {
   collection, query, where,
   getDocs, addDoc, serverTimestamp,
 } from "firebase/firestore";
+import { signOut } from "firebase/auth";
 import { db, auth } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
 import {
   ArrowLeft, Wheat, Search,
-  Loader2, CheckCircle, Building2,
+  Loader2, CheckCircle, Building2, LogOut,
 } from "lucide-react";
 
 export default function JoinFarmPage() {
@@ -289,6 +290,20 @@ export default function JoinFarmPage() {
             </p>
           </div>
         )}
+
+        {/* Sign out */}
+        <div className="mt-10 flex justify-center">
+          <button
+            onClick={async () => {
+              await signOut(auth);
+              window.location.replace("/login");
+            }}
+            className="flex items-center gap-2 text-gray-400 text-sm"
+          >
+            <LogOut size={16} />
+            Logout and use different account
+          </button>
+        </div>
       </div>
     </div>
   );
