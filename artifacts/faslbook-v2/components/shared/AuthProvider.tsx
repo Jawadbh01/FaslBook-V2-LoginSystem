@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
@@ -9,19 +9,24 @@ import { useAuthStore } from "@/store/authStore";
 
 const PUBLIC_PATHS = ["/login", "/email", "/register", "/create-farm"];
 
+function isPublic(path: string) {
+  return PUBLIC_PATHS.some((p) => path.startsWith(p));
+}
+
 export default function AuthProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
   const { setUser, setOrganization, setRole, setLoading, loading } =
     useAuthStore();
 
   useEffect(() => {
+    // Subscribe only once — read current path at callback time via window.location
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+      const currentPath = window.location.pathname;
+      const onPublic = isPublic(currentPath);
 
       if (firebaseUser) {
         setUser(firebaseUser);
@@ -31,7 +36,7 @@ export default function AuthProvider({
           const userDoc = await getDoc(userDocRef);
 
           if (!userDoc.exists()) {
-            // New Google/Facebook user — create Firestore user doc
+            // New social login user — create Firestore doc
             await setDoc(userDocRef, {
               id: firebaseUser.uid,
               name: firebaseUser.displayName || "",
@@ -60,17 +65,14 @@ export default function AuthProvider({
             if (orgDoc.exists()) {
               setOrganization(orgDoc.data() as any);
               setLoading(false);
-              // Only redirect away if on a public/auth page
-              if (isPublicPath) {
-                router.replace("/overview");
-              }
+              if (onPublic) router.replace("/overview");
               return;
             }
           }
 
-          // User exists but no valid org
+          // Logged in but no org
           setLoading(false);
-          if (pathname !== "/create-farm") {
+          if (currentPath !== "/create-farm") {
             router.replace("/create-farm");
           }
         } catch (error) {
@@ -83,14 +85,14 @@ export default function AuthProvider({
         setOrganization(null);
         setRole(null);
         setLoading(false);
-        if (!isPublicPath) {
+        if (!onPublic) {
           router.replace("/login");
         }
       }
     });
 
     return () => unsubscribe();
-  }, [pathname]);
+  }, []); // ← empty array: subscribe once, never re-subscribe on path changes
 
   if (loading) {
     return (

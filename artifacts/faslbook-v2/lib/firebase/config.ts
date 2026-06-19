@@ -17,14 +17,4 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-
-// Offline persistence
-if (typeof window !== "undefined") {
-  import("firebase/firestore").then(({ enableIndexedDbPersistence }) => {
-    enableIndexedDbPersistence(db).catch((err) => {
-      console.warn("Offline persistence:", err.code);
-    });
-  });
-}
-
 export default app;
