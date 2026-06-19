@@ -1,0 +1,173 @@
+There are TWO errors happening:
+1. "Rendered more hooks than during the previous render"
+2. "Application error: client-side exception"
+
+Do exactly this - replace these files with EXACT content shown:
+
+FILE 1: Replace components/shared/AuthProvider.tsx with EXACTLY this:
+
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/config";
+import { useAuthStore } from "@/store/authStore";
+
+const PUBLIC = ["/login", "/email", "/register", "/create-farm"];
+
+export default function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { setUser, setOrganization, setRole, setLoading } = useAuthStore();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (firebaseUser) {
+          setUser(firebaseUser);
+          const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+          if (!snap.exists()) {
+            await setDoc(doc(db, "users", firebaseUser.uid), {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || "",
+              email: firebaseUser.email || "",
+              phone: firebaseUser.phoneNumber || "",
+              photoUrl: firebaseUser.photoURL || "",
+              role: null,
+              organizationId: null,
+              status: "pending",
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              syncStatus: "synced",
+            });
+            setReady(true);
+            setLoading(false);
+            router.replace("/create-farm");
+            return;
+          }
+          const data = snap.data();
+          setRole(data.role);
+          if (data.organizationId) {
+            const orgSnap = await getDoc(doc(db, "organizations", data.organizationId));
+            if (orgSnap.exists()) {
+              setOrganization(orgSnap.data() as any);
+              setReady(true);
+              setLoading(false);
+              if (PUBLIC.includes(pathname)) router.replace("/overview");
+              return;
+            }
+          }
+          setReady(true);
+          setLoading(false);
+          router.replace("/create-farm");
+        } else {
+          setUser(null);
+          setOrganization(null);
+          setRole(null);
+          setReady(true);
+          setLoading(false);
+          if (!PUBLIC.includes(pathname)) router.replace("/login");
+        }
+      } catch (e) {
+        console.error(e);
+        setReady(true);
+        setLoading(false);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  if (!ready) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundColor: "white", gap: "16px" }}>
+        <div style={{ width: "40px", height: "40px", borderRadius: "50%", border: "4px solid #e5e7eb", borderTopColor: "#1B5E20", animation: "spin 1s linear infinite" }} />
+        <p style={{ color: "#9ca3af", fontSize: "14px" }}>Loading FaslBook...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+FILE 2: Replace app/layout.tsx with EXACTLY this:
+
+import type { Metadata } from "next";
+import "./globals.css";
+import AuthProvider from "@/components/shared/AuthProvider";
+
+export const metadata: Metadata = {
+  title: "FaslBook",
+  description: "Farm Operating System",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body suppressHydrationWarning={true}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
+    </html>
+  );
+}
+
+FILE 3: Replace app/(dashboard)/layout.tsx with EXACTLY this:
+
+import BottomNav from "@/components/shared/BottomNav";
+import TopBar from "@/components/shared/TopBar";
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column" }}>
+      <TopBar />
+      <main style={{ flex: 1, paddingBottom: "80px", overflowY: "auto" }}>{children}</main>
+      <BottomNav />
+    </div>
+  );
+}
+
+FILE 4: Replace store/authStore.ts with EXACTLY this:
+
+import { create } from "zustand";
+import { User } from "firebase/auth";
+
+interface Organization {
+  id: string;
+  farmId: string;
+  name: string;
+  village: string;
+  district: string;
+  province: string;
+  landlordId: string;
+}
+
+interface AuthState {
+  user: User | null;
+  organization: Organization | null;
+  role: "landlord" | "manager" | "farmer" | "worker" | null;
+  loading: boolean;
+  setUser: (user: User | null) => void;
+  setOrganization: (org: Organization | null) => void;
+  setRole: (role: AuthState["role"]) => void;
+  setLoading: (loading: boolean) => void;
+  reset: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  organization: null,
+  role: null,
+  loading: true,
+  setUser: (user) => set({ user }),
+  setOrganization: (organization) => set({ organization }),
+  setRole: (role) => set({ role }),
+  setLoading: (loading) => set({ loading }),
+  reset: () => set({ user: null, organization: null, role: null, loading: false }),
+}));
+
+After replacing all 4 files:
+1. Run: rm -rf .next
+2. Run: npm run dev
+3. Show me the terminal output
