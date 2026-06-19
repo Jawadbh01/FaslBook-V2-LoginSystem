@@ -1,0 +1,98 @@
+You are working on FaslBook V2 - a Farm Operating System built with Next.js 15, Firebase Firestore, Tailwind CSS, and TypeScript.
+
+PROJECT OVERVIEW:
+FaslBook is a farm management app for Pakistani farmers. It manages parcels, crops, inventory, expenses, income, attendance, dealers and ledger. Primary color is deep green #1B5E20.
+
+CURRENT STATUS:
+Phase 1 is complete and working:
+- Firebase Auth connected (Google, Facebook, Email)
+- User registration with Firestore
+- Create Farm with auto Farm ID generator (FB-XXXXXX)
+- AuthProvider handles all routing via onAuthStateChanged
+- Bottom navigation: Home, Khata, Godown, Dealer, Team
+- Login, Register, Email, Create Farm pages all working
+
+TECH STACK:
+- Next.js 15 App Router
+- Firebase Firestore + Auth + Storage
+- Tailwind CSS
+- Zustand (authStore, orgStore)
+- lucide-react icons
+- TypeScript
+
+IMPORTANT RULES:
+- Primary color always #1B5E20 deep green
+- All hooks must be at TOP of component before any returns
+- Never create duplicate Firebase instances - only import from lib/firebase/config.ts
+- AuthProvider uses window.location not useRouter for navigation
+- All Firestore queries must filter by organizationId
+- Every action must create activityLog in Firestore
+
+FIRESTORE COLLECTIONS:
+organizations, users, parcels, crops, inventoryItems, inventoryTransactions, dealers, dealerTransactions, expenses, income, loans, workers, attendance, ledgerEntries, notifications, settings, activityLogs, joinRequests
+
+NOW DO PHASE 2 - Add these files:
+
+TASK 1 - Create app/(auth)/role-select/page.tsx
+Role selection screen with 3 cards:
+- Landlord (زمیندار) - green #1B5E20 - Wheat icon - "I own the farm"
+- Manager (منیجر) - blue #1565C0 - Users icon - "I manage farm operations"  
+- Farmer (کسان) - orange #E65100 - Tractor icon - "I work the land"
+Each card has icon, title, urdu text, description, arrow
+On click navigate to /register?role=landlord (or manager or farmer)
+Note at bottom: Workers are invite only
+Back button goes to /login
+
+TASK 2 - Update app/(auth)/login/page.tsx
+Change "Create Farm" button at bottom to navigate to /role-select instead of /register
+
+TASK 3 - Replace app/(auth)/register/page.tsx
+Read role from URL searchParams ?role=landlord/manager/farmer
+Show role badge in header with correct color
+Landlord = green, Manager = blue, Farmer = orange
+After successful registration:
+- If landlord: AuthProvider will redirect to /create-farm automatically
+- If manager or farmer: AuthProvider will redirect to /join-farm automatically
+Show success screen with role badge and spinner
+
+TASK 4 - Create app/(auth)/join-farm/page.tsx
+For managers and farmers to join a farm:
+- Input field for Farm ID with search button
+- Search queries Firestore organizations collection where farmId == input
+- Show farm details card: name, village, district, province
+- Request to Join button creates document in joinRequests collection with: userId, userName, userEmail, organizationId, farmName, farmId, role, status: pending
+- Success screen after request sent
+- Navigate to /pending after success
+
+TASK 5 - Create app/(auth)/pending/page.tsx
+Waiting screen for managers and farmers:
+- Clock icon, "Waiting for Approval" heading in English and Urdu
+- List of their join requests from Firestore with status badges
+- onSnapshot listener - auto redirects to /overview when status becomes approved
+- Logout button at bottom
+
+TASK 6 - Create app/(dashboard)/approvals/page.tsx
+Landlord approval screen:
+- Shows all pending joinRequests for their organizationId
+- Each card shows: user name, email, role badge with icon and color
+- Approve button: updates joinRequest status to approved, updates user document with organizationId and role and status active
+- Reject button: updates joinRequest status to rejected
+- Empty state when no pending requests
+
+TASK 7 - Update components/shared/AuthProvider.tsx
+Add to PUBLIC array: /role-select, /join-farm, /pending
+Update no-org routing logic:
+- If role is landlord and no org: navigate to /create-farm
+- If role is manager or farmer and no org: navigate to /join-farm
+- If role is manager or farmer and has pending request: navigate to /pending
+
+TASK 8 - Update components/shared/BottomNav.tsx  
+Fix active tab to show green pill background behind active icon like Instagram.
+Wrap icon in a div with backgroundColor #E8F5E9 when active, transparent when not.
+
+TASK 9 - Fix components/shared/TopBar.tsx
+Replace bg-primary-900 class with style backgroundColor #1B5E20
+Replace hover:bg-primary-800 with no hover or rgba white overlay
+Fix spelling: "Faslbook" should be "FaslBook"
+
+Keep all existing code intact. Only add and update specified files. Use lucide-react for all icons. Use Tailwind for styling with inline styles for brand colors.
