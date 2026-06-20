@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import {
   collection, query, where,
   onSnapshot, orderBy, limit,
+  doc, getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
+import { useRouter } from "next/navigation";
 import { useLangStore } from "@/store/langStore";
 import {
   TrendingUp, TrendingDown, Wallet,
@@ -46,9 +48,11 @@ const getGreeting = (): "good_morning" | "good_afternoon" | "good_evening" => {
 export default function OverviewPage() {
   const { organization, role, user } = useAuthStore();
   const { t } = useLangStore();
+  const router = useRouter();
   const orgId = organization?.id;
 
   // ── State ────────────────────────────────────────────────────
+  const [userName, setUserName]           = useState<string>("");
   const [income, setIncome]               = useState(0);
   const [expense, setExpense]             = useState(0);
   const [inventoryValue, setInventoryValue] = useState(0);
@@ -58,6 +62,19 @@ export default function OverviewPage() {
   const [pendingRequests, setPendingRequests] = useState(0);
   const [loading, setLoading]             = useState(true);
   const [copied, setCopied]               = useState(false);
+
+  // ── Fetch user name from Firestore ───────────────────────────
+  useEffect(() => {
+    if (!user?.uid) return;
+    getDoc(doc(db, "users", user.uid)).then((snap) => {
+      if (snap.exists()) {
+        const name = snap.data().name || user.displayName || "";
+        setUserName(name);
+      } else {
+        setUserName(user.displayName || "");
+      }
+    });
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!orgId) return;
@@ -143,7 +160,8 @@ export default function OverviewPage() {
   };
 
   // ── User avatar ───────────────────────────────────────────────
-  const initials = (user?.displayName || "U").split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
+  const displayName = userName || user?.displayName || "User";
+  const initials = displayName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "U";
 
   if (loading) {
     return (
@@ -159,26 +177,33 @@ export default function OverviewPage() {
       {/* ── Header ───────────────────────────────────────────── */}
       <div className="px-4 pt-10 pb-4" style={{ backgroundColor: "#1B5E20" }}>
         <div className="flex items-center justify-between mb-3">
-          {/* Profile */}
-          <div className="flex items-center gap-3">
+          {/* Profile — clickable → /profile */}
+          <button
+            onClick={() => router.push("/profile")}
+            className="flex items-center gap-3 active:opacity-80 transition-opacity"
+          >
             {user?.photoURL ? (
               <img
                 src={user.photoURL}
                 alt="profile"
-                className="w-11 h-11 rounded-full border-2 border-white/40 object-cover"
+                className="w-12 h-12 rounded-full border-2 border-white/40 object-cover shrink-0"
               />
             ) : (
-              <div className="w-11 h-11 rounded-full border-2 border-white/40 flex items-center justify-center bg-white/20">
+              <div className="w-12 h-12 rounded-full border-2 border-white/40 flex items-center justify-center bg-white/20 shrink-0">
                 <span className="text-white font-bold text-sm">{initials}</span>
               </div>
             )}
-            <div>
+            <div className="text-left">
               <p className="text-green-200 text-xs">{t(getGreeting())}</p>
-              <p className="text-white font-bold text-base leading-tight">
-                {organization?.name ?? "FaslBook"}
+              <p className="text-white font-bold text-lg leading-tight">
+                {displayName}
+              </p>
+              <p className="text-green-300 text-xs leading-tight">
+                {organization?.name ?? ""}
+                {role ? ` • ${role.charAt(0).toUpperCase() + role.slice(1)}` : ""}
               </p>
             </div>
-          </div>
+          </button>
 
           {/* Right icons */}
           <div className="flex items-center gap-2">

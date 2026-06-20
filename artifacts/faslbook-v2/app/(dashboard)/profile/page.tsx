@@ -1,0 +1,269 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/config";
+import { useAuthStore } from "@/store/authStore";
+import { useLangStore } from "@/store/langStore";
+import {
+  ChevronLeft, User, Mail, Phone,
+  LogOut, Camera, Sun, Moon, Bell,
+  Copy, Check, Wheat,
+} from "lucide-react";
+import type { Lang } from "@/lib/i18n/translations";
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const { user, organization, role } = useAuthStore();
+  const { lang, setLang, t } = useLangStore();
+
+  const [userName, setUserName]       = useState("");
+  const [userPhone, setUserPhone]     = useState("");
+  const [darkMode, setDarkMode]       = useState(false);
+  const [notifs, setNotifs]           = useState(true);
+  const [copied, setCopied]           = useState(false);
+  const [loggingOut, setLoggingOut]   = useState(false);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    getDoc(doc(db, "users", user.uid)).then((snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setUserName(d.name || user.displayName || "");
+        setUserPhone(d.phone || user.phoneNumber || "");
+      } else {
+        setUserName(user.displayName || "");
+        setUserPhone(user.phoneNumber || "");
+      }
+    });
+  }, [user?.uid]);
+
+  const initials = (userName || user?.displayName || "U")
+    .split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "U";
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await signOut(auth);
+      window.location.replace("/login");
+    } catch {
+      setLoggingOut(false);
+    }
+  };
+
+  const copyFarmId = () => {
+    navigator.clipboard.writeText(organization?.farmId || "");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const LANGS: { code: Lang; label: string }[] = [
+    { code: "en", label: "English" },
+    { code: "ur", label: "اردو" },
+    { code: "sd", label: "سنڌي" },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-10">
+
+      {/* ── Green Header ─────────────────────────────────────── */}
+      <div className="px-4 pt-10 pb-16" style={{ backgroundColor: "#1B5E20" }}>
+        <div className="flex items-center gap-3 mb-2">
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+          >
+            <ChevronLeft size={24} color="white" />
+          </button>
+          <h1 className="text-white text-lg font-bold flex-1">Profile & Settings</h1>
+        </div>
+      </div>
+
+      {/* ── Avatar card (overlaps header) ────────────────────── */}
+      <div className="px-5 -mt-12">
+        <div className="bg-white rounded-2xl shadow-md px-5 pt-5 pb-5 flex flex-col items-center">
+          <div className="relative mb-3">
+            {user?.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt="profile"
+                className="w-24 h-24 rounded-full border-4 border-white shadow-md object-cover"
+              />
+            ) : (
+              <div
+                className="w-24 h-24 rounded-full border-4 border-white shadow-md flex items-center justify-center"
+                style={{ backgroundColor: "#1B5E20" }}
+              >
+                <span className="text-white font-bold text-3xl">{initials}</span>
+              </div>
+            )}
+            <button
+              className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center shadow border-2 border-white"
+              style={{ backgroundColor: "#1B5E20" }}
+            >
+              <Camera size={14} color="white" />
+            </button>
+          </div>
+          <p className="text-gray-800 font-bold text-xl">{userName || user?.displayName || "User"}</p>
+          <p className="text-gray-400 text-sm">
+            {organization?.name ?? ""}{role ? ` • ${role.charAt(0).toUpperCase() + role.slice(1)}` : ""}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Personal Info ─────────────────────────────────────── */}
+      <div className="px-5 mt-4">
+        <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2 ml-1">Personal Info</p>
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <InfoRow icon={<User size={18} color="#1B5E20" />} label="Name" value={userName || user?.displayName || "—"} />
+          <InfoRow icon={<Mail size={18} color="#1B5E20" />} label="Email" value={user?.email || "—"} divider />
+          <InfoRow icon={<Phone size={18} color="#1B5E20" />} label="Phone" value={userPhone || "—"} divider />
+        </div>
+      </div>
+
+      {/* ── Language ──────────────────────────────────────────── */}
+      <div className="px-5 mt-4">
+        <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2 ml-1">Language</p>
+        <div className="bg-white rounded-2xl shadow-sm p-4">
+          <div className="flex gap-3">
+            {LANGS.map(({ code, label }) => (
+              <button
+                key={code}
+                onClick={() => setLang(code)}
+                className="flex-1 py-2 rounded-xl text-sm font-bold transition-all"
+                style={{
+                  backgroundColor: lang === code ? "#1B5E20" : "#F5F5F5",
+                  color: lang === code ? "white" : "#6B7280",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Appearance ────────────────────────────────────────── */}
+      <div className="px-5 mt-4">
+        <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2 ml-1">Appearance</p>
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: "#E8F5E9" }}>
+                {darkMode ? <Moon size={18} color="#1B5E20" /> : <Sun size={18} color="#1B5E20" />}
+              </div>
+              <span className="text-gray-800 font-medium text-sm">{darkMode ? "Dark Mode" : "Light Mode"}</span>
+            </div>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="relative w-12 h-6 rounded-full transition-colors duration-200"
+              style={{ backgroundColor: darkMode ? "#1B5E20" : "#D1D5DB" }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
+                style={{ transform: darkMode ? "translateX(26px)" : "translateX(2px)" }}
+              />
+            </button>
+          </div>
+          <div className="h-px bg-gray-100 mx-4" />
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: "#E8F5E9" }}>
+                <Bell size={18} color="#1B5E20" />
+              </div>
+              <span className="text-gray-800 font-medium text-sm">Notifications</span>
+            </div>
+            <button
+              onClick={() => setNotifs(!notifs)}
+              className="relative w-12 h-6 rounded-full transition-colors duration-200"
+              style={{ backgroundColor: notifs ? "#1B5E20" : "#D1D5DB" }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
+                style={{ transform: notifs ? "translateX(26px)" : "translateX(2px)" }}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Farm Info ─────────────────────────────────────────── */}
+      {organization && (
+        <div className="px-5 mt-4">
+          <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2 ml-1">Farm Info</p>
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: "#E8F5E9" }}>
+                <Wheat size={18} color="#1B5E20" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-gray-400 text-xs">Farm Name</p>
+                <p className="text-gray-800 font-semibold text-sm truncate">{organization.name}</p>
+              </div>
+            </div>
+            <div className="h-px bg-gray-100 mx-4" />
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: "#E8F5E9" }}>
+                <Wheat size={18} color="#1B5E20" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-gray-400 text-xs">Farm ID</p>
+                <p className="text-gray-800 font-semibold text-sm font-mono tracking-wider">{organization.farmId}</p>
+              </div>
+              <button
+                onClick={copyFarmId}
+                className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl text-white shrink-0"
+                style={{ backgroundColor: "#1B5E20" }}
+              >
+                {copied ? <Check size={12} /> : <Copy size={12} />}
+                {copied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Logout ────────────────────────────────────────────── */}
+      <div className="px-5 mt-6">
+        <button
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-white font-bold text-base disabled:opacity-60"
+          style={{ backgroundColor: "#C62828" }}
+        >
+          <LogOut size={20} />
+          {loggingOut ? "Signing out…" : "Sign Out"}
+        </button>
+      </div>
+
+      {/* ── Version ───────────────────────────────────────────── */}
+      <p className="text-center text-gray-300 text-xs mt-6">FaslBook V2 • v2.0.0</p>
+    </div>
+  );
+}
+
+function InfoRow({
+  icon, label, value, divider,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  divider?: boolean;
+}) {
+  return (
+    <>
+      {divider && <div className="h-px bg-gray-100 mx-4" />}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: "#E8F5E9" }}>
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-gray-400 text-xs">{label}</p>
+          <p className="text-gray-800 font-medium text-sm truncate">{value}</p>
+        </div>
+      </div>
+    </>
+  );
+}

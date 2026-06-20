@@ -43,7 +43,7 @@ export default function AuthProvider({
           const userSnap = await getDoc(userRef);
 
           if (!userSnap.exists()) {
-            // New social login — create user doc
+            // New social login — create bare user doc, then pick role
             await setDoc(userRef, {
               id: firebaseUser.uid,
               name: firebaseUser.displayName ?? "",
@@ -52,14 +52,13 @@ export default function AuthProvider({
               photoUrl: firebaseUser.photoURL ?? "",
               role: null,
               organizationId: null,
-              status: "pending",
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
               syncStatus: "synced",
             });
             setLoading(false);
             setReady(true);
-            navigate("/create-farm");
+            navigate("/role-select");
             return;
           }
 
