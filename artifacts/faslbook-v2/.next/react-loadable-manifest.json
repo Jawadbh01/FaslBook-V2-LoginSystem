@@ -1,6 +1,1 @@
-{
-  "app/(auth)/join-farm/page.tsx -> @/store/authStore": {
-    "id": "app/(auth)/join-farm/page.tsx -> @/store/authStore",
-    "files": []
-  }
-}
+{}
