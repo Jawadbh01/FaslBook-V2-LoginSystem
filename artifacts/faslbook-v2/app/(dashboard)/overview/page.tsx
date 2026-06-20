@@ -111,10 +111,10 @@ export default function OverviewPage() {
 
   // ── Summary cards ─────────────────────────────────────────────
   const cards = [
-    { key: "income",    value: income,          icon: TrendingUp,   color: "#1B5E20", bg: "#E8F5E9",  pct: "+12%" },
-    { key: "expense",   value: expense,         icon: TrendingDown, color: "#C62828", bg: "#FFEBEE",  pct: "+5%"  },
-    { key: "profit",    value: profit,          icon: Wallet,       color: profit >= 0 ? "#1565C0" : "#C62828", bg: profit >= 0 ? "#E3F2FD" : "#FFEBEE", pct: profit >= 0 ? "+8%" : "-3%" },
-    { key: "inventory", value: inventoryValue,  icon: Package,      color: "#E65100", bg: "#FFF3E0",  pct: "0%"   },
+    { key: "income",    value: income,          icon: TrendingUp,   color: "#1B5E20", bg: "#E8F5E9" },
+    { key: "expense",   value: expense,         icon: TrendingDown, color: "#C62828", bg: "#FFEBEE" },
+    { key: "profit",    value: profit,          icon: Wallet,       color: profit >= 0 ? "#1565C0" : "#C62828", bg: profit >= 0 ? "#E3F2FD" : "#FFEBEE" },
+    { key: "inventory", value: inventoryValue,  icon: Package,      color: "#E65100", bg: "#FFF3E0" },
   ];
 
   // ── Quick actions ─────────────────────────────────────────────
@@ -218,11 +218,8 @@ export default function OverviewPage() {
                       <Icon size={14} color={card.color} />
                     </div>
                   </div>
-                  <p className="font-bold text-base leading-tight mb-1" style={{ color: card.color }}>
+                  <p className="font-bold text-base leading-tight" style={{ color: card.color }}>
                     {fmt(card.value)}
-                  </p>
-                  <p className="text-xs" style={{ color: card.color + "99" }}>
-                    {card.pct} {t("vs_last_month")}
                   </p>
                 </div>
               );
@@ -272,18 +269,18 @@ export default function OverviewPage() {
             {t("view_all")} <ChevronRight size={12} color="#1B5E20" />
           </button>
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
           {actions.map((action) => {
             const Icon = action.icon;
             return (
-              <Link key={action.key} href={action.href} className="flex flex-col items-center gap-2 shrink-0">
+              <Link key={action.key} href={action.href} className="flex flex-col items-center gap-2 shrink-0 pb-1">
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center shadow-sm"
                   style={{ backgroundColor: action.bg }}
                 >
                   <Icon size={24} color={action.color} />
                 </div>
-                <p className="text-gray-600 text-xs font-medium text-center w-14 leading-tight">
+                <p className="text-gray-600 text-xs font-medium text-center w-16 leading-tight">
                   {t(action.key)}
                 </p>
               </Link>

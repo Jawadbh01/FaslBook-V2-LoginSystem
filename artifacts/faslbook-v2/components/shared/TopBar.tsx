@@ -23,12 +23,14 @@ const PAGE_TITLE_KEYS: Record<string, string> = {
   "/notifications": "notifications",
 };
 
+const HIDE_TOPBAR = new Set(["/overview", "/"]);
+
 export default function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLangStore();
 
-  if (pathname === "/overview") return null;
+  if (HIDE_TOPBAR.has(pathname ?? "") || (pathname ?? "").startsWith("/overview")) return null;
 
   const isMainNav = MAIN_NAV.includes(pathname);
   const titleKey = PAGE_TITLE_KEYS[pathname] ?? "";
