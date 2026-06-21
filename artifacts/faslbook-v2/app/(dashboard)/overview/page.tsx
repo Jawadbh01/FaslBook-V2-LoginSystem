@@ -51,6 +51,17 @@ export default function OverviewPage() {
   const router = useRouter();
   const orgId = organization?.id;
 
+  // Prefetch likely next pages so navigation feels instant
+  useEffect(() => {
+    router.prefetch("/profile");
+    router.prefetch("/expenses");
+    router.prefetch("/income");
+    router.prefetch("/parcels");
+    router.prefetch("/inventory");
+    router.prefetch("/workers");
+    router.prefetch("/reports");
+  }, [router]);
+
   // ── State ────────────────────────────────────────────────────
   const [userName, setUserName]           = useState<string>("");
   const [income, setIncome]               = useState(0);

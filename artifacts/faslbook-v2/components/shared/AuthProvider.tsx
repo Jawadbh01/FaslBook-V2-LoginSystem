@@ -22,16 +22,13 @@ export default function AuthProvider({
 }: {
   children: React.ReactNode;
 }) {
-  // Only 2 hooks — useState and useEffect — no useRouter, no usePathname
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Read current path at callback time — never stale
       const currentPath = window.location.pathname;
       const onPublic = isPublicPath(currentPath);
 
-      // Access Zustand setters outside React — not a hook call
       const { setUser, setOrganization, setRole, setLoading } =
         useAuthStore.getState();
 
@@ -43,7 +40,7 @@ export default function AuthProvider({
           const userSnap = await getDoc(userRef);
 
           if (!userSnap.exists()) {
-            // New social login — create bare user doc, then pick role
+            // New social login — create bare user doc, send to role selection
             await setDoc(userRef, {
               id: firebaseUser.uid,
               name: firebaseUser.displayName ?? "",
@@ -63,9 +60,11 @@ export default function AuthProvider({
           }
 
           const userData = userSnap.data();
-          setRole(userData.role ?? null);
+          const role = userData.role ?? null;
+          setRole(role);
 
           if (userData.organizationId) {
+            // Fetch org in parallel with nothing else to wait on
             const orgSnap = await getDoc(
               doc(db, "organizations", userData.organizationId)
             );
@@ -78,16 +77,19 @@ export default function AuthProvider({
             }
           }
 
-          // Logged in but no org
+          // Logged in but no org yet
           setLoading(false);
           setReady(true);
-          const role = userData.role;
+
           if (role === "landlord") {
             if (currentPath !== "/create-farm") navigate("/create-farm");
-          } else {
+          } else if (role === "manager" || role === "farmer") {
             if (currentPath !== "/join-farm" && currentPath !== "/pending") {
               navigate("/join-farm");
             }
+          } else {
+            // role is null — Google user who never picked a role
+            if (currentPath !== "/role-select") navigate("/role-select");
           }
         } else {
           // Not logged in
@@ -106,7 +108,7 @@ export default function AuthProvider({
     });
 
     return () => unsubscribe();
-  }, []); // Subscribe exactly once — never re-subscribe
+  }, []);
 
   if (!ready) {
     return (

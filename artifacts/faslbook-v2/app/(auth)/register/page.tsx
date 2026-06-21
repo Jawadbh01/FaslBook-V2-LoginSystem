@@ -80,7 +80,9 @@ export default function RegisterPage() {
         auth, email, password
       );
 
-      await setDoc(doc(db, "users", result.user.uid), {
+      // Show success immediately — write to Firestore in background
+      setSuccess(true);
+      setDoc(doc(db, "users", result.user.uid), {
         id: result.user.uid,
         name,
         email,
@@ -93,8 +95,6 @@ export default function RegisterPage() {
         updatedAt: serverTimestamp(),
         syncStatus: "synced",
       });
-
-      setSuccess(true);
 
     } catch (err: any) {
       const code = err.code ?? "";

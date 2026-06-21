@@ -1,0 +1,119 @@
+Fix auth flow and make entire app feel fast and responsive. These are the exact issues:
+
+PROBLEM 1 - New Google user goes to login instead of role-select:
+In components/shared/AuthProvider.tsx the onAuthStateChanged fires after Google redirect.
+Current broken flow: new Google user → AuthProvider → redirects to /login instead of /role-select
+Fix: In AuthProvider after Firebase user is detected, check Firestore users collection.
+If user document does NOT exist → this is a new user → redirect to /role-select
+If user document exists AND has organizationId → redirect to /overview
+If user document exists but NO organizationId → check role field:
+  - role is landlord → /create-farm
+  - role is manager or farmer → /join-farm
+  - role is null (came from Google, never selected role) → /role-select
+
+PROBLEM 2 - Everything feels slow, buttons unresponsive:
+Root cause: Firebase operations are slow and UI gives no feedback.
+
+Fix ALL buttons across entire app with these rules:
+
+Rule 1: Every button must show visual feedback within 50ms of tap.
+Add this to every clickable button:
+style={{ transform: "scale(0.97)", transition: "transform 0.1s" }}
+Or use active:scale-95 Tailwind class on every button.
+
+Rule 2: Show loading spinner immediately on click BEFORE any async operation starts.
+Wrong way:
+const result = await firebaseOperation()
+setLoading(false)
+
+Correct way:
+setLoading(true)  ← this must happen first, synchronously
+const result = await firebaseOperation()
+setLoading(false)
+
+Rule 3: After successful auth, use window.location.replace() NOT router.push()
+router.push() waits for Next.js navigation which is slow.
+window.location.replace() is instant browser redirect.
+
+Rule 4: Pre-fetch user data during loading screen:
+In AuthProvider, while showing the spinner, simultaneously:
+- Get Firebase auth state
+- Fetch user Firestore document  
+- Fetch organization document
+All in parallel using Promise.all() not sequential awaits.
+
+Fix:
+const [userSnap, ] = await Promise.all([
+  getDoc(doc(db, "users", firebaseUser.uid)),
+  // other fetches
+])
+
+Rule 5: Cache user data in Zustand store immediately:
+Once user and org are loaded into Zustand store, all pages read from store instantly without waiting for Firestore again.
+
+PROBLEM 3 - Email login slow redirect:
+In app/(auth)/email/page.tsx:
+After signInWithEmailAndPassword succeeds immediately fetch user doc and redirect.
+Do not wait for AuthProvider onAuthStateChanged.
+Use Promise.all to fetch user doc simultaneously:
+
+const [credential, ] = await Promise.all([
+  signInWithEmailAndPassword(auth, email, password),
+])
+const userDoc = await getDoc(doc(db, "users", credential.user.uid))
+if (userDoc.exists()) {
+  const data = userDoc.data()
+  if (data.organizationId) {
+    window.location.replace("/overview")
+  } else if (data.role === "landlord") {
+    window.location.replace("/create-farm")  
+  } else {
+    window.location.replace("/join-farm")
+  }
+} else {
+  window.location.replace("/role-select")
+}
+
+PROBLEM 4 - Profile button and all navigation buttons slow:
+In overview/page.tsx avatar/profile button:
+Change from router.push to this pattern:
+const handleProfile = () => {
+  // Instant visual feedback
+  router.prefetch("/profile")
+  router.push("/profile")
+}
+
+Add router.prefetch() calls in useEffect for all likely next pages:
+useEffect(() => {
+  router.prefetch("/profile")
+  router.prefetch("/expenses")
+  router.prefetch("/income")
+  router.prefetch("/parcels")
+  router.prefetch("/inventory")
+}, [])
+
+PROBLEM 5 - Create account button slow:
+In app/(auth)/register/page.tsx:
+Show success screen immediately after createUserWithEmailAndPassword succeeds.
+Then do Firestore setDoc in background, do not await it before showing success.
+Use this pattern:
+const credential = await createUserWithEmailAndPassword(auth, email, password)
+setSuccess(true) ← show success immediately
+setDoc(doc(db, "users", credential.user.uid), userData) ← background, no await
+
+GLOBAL FIXES:
+1. Add loading="eager" to all images
+2. Add these to app/layout.tsx head for faster Firebase:
+<link rel="preconnect" href="https://firestore.googleapis.com" />
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" />
+<link rel="dns-prefetch" href="https://firestore.googleapis.com" />
+
+3. In lib/firebase/config.ts enable long polling for better mobile performance:
+import { initializeFirestore, persistentLocalCache } from "firebase/firestore"
+Replace getFirestore(app) with:
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache()
+})
+
+4. Add active:scale-95 transition:duration-100 to EVERY button in EVERY file.
+This makes every button feel instantly responsive on tap.
