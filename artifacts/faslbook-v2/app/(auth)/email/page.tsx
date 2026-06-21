@@ -6,7 +6,8 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/config";
 import {
   Mail, Lock, ArrowLeft, Loader2,
   Eye, EyeOff, Wheat, CheckCircle, X,
@@ -40,8 +41,21 @@ export default function EmailLoginPage() {
       setLoading(true);
       setError("");
       setWrongPassword(false);
-      await signInWithEmailAndPassword(auth, email, password);
-      // AuthProvider onAuthStateChanged handles redirect automatically
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      // Manually check Firestore and redirect — don't wait for AuthProvider
+      const userSnap = await getDoc(doc(db, "users", result.user.uid));
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        if (userData.organizationId) {
+          window.location.replace("/overview");
+        } else if (userData.role === "landlord") {
+          window.location.replace("/create-farm");
+        } else {
+          window.location.replace("/join-farm");
+        }
+      } else {
+        window.location.replace("/role-select");
+      }
     } catch (err: any) {
       console.error("Login error:", err.code, err.message);
       const code = err.code ?? "";

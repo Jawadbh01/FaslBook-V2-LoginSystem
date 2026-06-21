@@ -176,7 +176,7 @@ export default function LoginPage() {
               className="font-bold"
               style={{ color: "#1B5E20" }}
             >
-              Create Farm
+              Create Account
             </button>
           </p>
         </div>

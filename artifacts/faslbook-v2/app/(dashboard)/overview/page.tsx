@@ -180,7 +180,7 @@ export default function OverviewPage() {
           {/* Profile — clickable → /profile */}
           <button
             onClick={() => router.push("/profile")}
-            className="flex items-center gap-3 active:opacity-80 transition-opacity"
+            className="flex items-center gap-3 active:scale-95 transition-transform"
           >
             {user?.photoURL ? (
               <img
