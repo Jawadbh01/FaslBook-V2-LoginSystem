@@ -7,46 +7,59 @@ import {
   GoogleAuthProvider,
   FacebookAuthProvider,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
 import { Wheat, Mail, Phone, Chrome, Loader2 } from "lucide-react";
 
-async function handleUserAfterAuth(uid: string, displayName: string | null, email: string | null, photoURL: string | null) {
-  const userRef = doc(db, "users", uid);
-  const userSnap = await getDoc(userRef);
-
-  if (!userSnap.exists()) {
-    await setDoc(userRef, {
-      id: uid,
-      name: displayName || "",
-      email: email || "",
-      phone: "",
-      photoUrl: photoURL || "",
-      role: null,
-      organizationId: null,
-      status: "pending",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      syncStatus: "synced",
-    });
-    window.location.replace("/role-select");
-    return;
-  }
-
-  const userData = userSnap.data();
+function routeByUserData(userData: any) {
   if (!userData.role) {
     window.location.replace("/role-select");
     return;
   }
   if (!userData.organizationId) {
-    if (userData.role === "landlord") {
-      window.location.replace("/create-farm");
-    } else {
-      window.location.replace("/join-farm");
-    }
+    window.location.replace(userData.role === "landlord" ? "/create-farm" : "/join-farm");
     return;
   }
   window.location.replace("/overview");
+}
+
+async function handleUserAfterAuth(uid: string, displayName: string | null, email: string | null, photoURL: string | null) {
+  // 1. Check by UID first (fastest path — returning Google user)
+  const userRef = doc(db, "users", uid);
+  const userSnap = await getDoc(userRef);
+
+  if (userSnap.exists()) {
+    routeByUserData(userSnap.data());
+    return;
+  }
+
+  // 2. UID doc not found — check by email (covers: registered via email/password before)
+  if (email) {
+    const emailSnap = await getDocs(
+      query(collection(db, "users"), where("email", "==", email))
+    );
+    if (!emailSnap.empty) {
+      // Existing account found by email — route them in
+      routeByUserData(emailSnap.docs[0].data());
+      return;
+    }
+  }
+
+  // 3. Truly new user — create their Firestore doc and send to role-select
+  await setDoc(userRef, {
+    id: uid,
+    name: displayName || "",
+    email: email || "",
+    phone: "",
+    photoUrl: photoURL || "",
+    role: null,
+    organizationId: null,
+    status: "pending",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    syncStatus: "synced",
+  });
+  window.location.replace("/role-select");
 }
 
 export default function LoginPage() {
