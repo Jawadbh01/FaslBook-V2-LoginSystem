@@ -1,0 +1,487 @@
+NUCLEAR FIX - Complete auth overhaul. The Google redirect and manual login are both broken. Do exactly these steps:
+
+STEP 1 - Replace app/(auth)/login/page.tsx with EXACTLY this:
+
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  signInWithRedirect,
+  getRedirectResult,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+} from "firebase/auth";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/config";
+import { Wheat, Mail, Phone, Chrome, Loader2 } from "lucide-react";
+
+async function handleUserAfterAuth(uid: string, displayName: string | null, email: string | null, photoURL: string | null) {
+  const userRef = doc(db, "users", uid);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      id: uid,
+      name: displayName || "",
+      email: email || "",
+      phone: "",
+      photoUrl: photoURL || "",
+      role: null,
+      organizationId: null,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      syncStatus: "synced",
+    });
+    window.location.replace("/role-select");
+    return;
+  }
+
+  const userData = userSnap.data();
+  if (!userData.role) {
+    window.location.replace("/role-select");
+    return;
+  }
+  if (!userData.organizationId) {
+    if (userData.role === "landlord") {
+      window.location.replace("/create-farm");
+    } else {
+      window.location.replace("/join-farm");
+    }
+    return;
+  }
+  window.location.replace("/overview");
+}
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) {
+          await handleUserAfterAuth(
+            result.user.uid,
+            result.user.displayName,
+            result.user.email,
+            result.user.photoURL
+          );
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Redirect error:", err);
+        setError("Login failed. Please try again.");
+        setLoading(false);
+      });
+  }, []);
+
+  const handleGoogle = async () => {
+    try {
+      setLoading(true);
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      await signInWithRedirect(auth, provider);
+    } catch {
+      setError("Google login failed.");
+      setLoading(false);
+    }
+  };
+
+  const handleFacebook = async () => {
+    try {
+      setLoading(true);
+      const provider = new FacebookAuthProvider();
+      await signInWithRedirect(auth, provider);
+    } catch {
+      setError("Facebook login failed.");
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4">
+        <div
+          className="animate-spin rounded-full h-12 w-12 border-4 border-gray-100"
+          style={{ borderTopColor: "#1B5E20" }}
+        />
+        <p className="text-gray-400 text-sm">Loading FaslBook...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div
+        className="flex flex-col items-center justify-center pt-16 pb-10 px-6"
+        style={{ backgroundColor: "#1B5E20" }}
+      >
+        <div className="bg-white rounded-full p-4 mb-4 shadow-lg">
+          <Wheat size={48} color="#1B5E20" />
+        </div>
+        <h1 className="text-white text-4xl font-bold tracking-wide">FaslBook</h1>
+        <p className="text-green-200 text-sm mt-1">Farm Operating System</p>
+        <p className="text-green-100 text-xl mt-3 font-semibold">خوش آمدید</p>
+        <p className="text-green-200 text-xs mt-1 text-center px-8">
+          Manage your farm, finances & team all in one place
+        </p>
+      </div>
+
+      <div className="flex-1 bg-white rounded-t-3xl -mt-4 px-6 pt-8 pb-10">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">
+            {error}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={handleGoogle}
+            className="flex items-center gap-3 w-full bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm active:scale-95 transition-transform"
+          >
+            <div className="bg-red-50 rounded-full p-2">
+              <Chrome size={22} color="#EA4335" />
+            </div>
+            <span className="text-gray-800 font-semibold text-base">
+              Continue with Google
+            </span>
+          </button>
+
+          <button
+            onClick={handleFacebook}
+            className="flex items-center gap-3 w-full bg-blue-600 rounded-2xl px-5 py-4 active:scale-95 transition-transform"
+          >
+            <div className="bg-blue-500 rounded-full p-2">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
+                <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z" />
+              </svg>
+            </div>
+            <span className="text-white font-semibold text-base">
+              Continue with Facebook
+            </span>
+          </button>
+
+          <button
+            disabled
+            className="flex items-center gap-3 w-full border-2 border-gray-200 rounded-2xl px-5 py-4 opacity-50 cursor-not-allowed"
+          >
+            <div className="rounded-full p-2 bg-gray-100">
+              <Phone size={22} color="#9CA3AF" />
+            </div>
+            <div className="flex flex-col items-start">
+              <span className="font-semibold text-base text-gray-400">
+                Continue with Phone (OTP)
+              </span>
+              <span className="text-xs text-gray-400">Not available right now</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => router.push("/email")}
+            className="flex items-center gap-3 w-full border-2 rounded-2xl px-5 py-4 active:scale-95 transition-transform"
+            style={{ borderColor: "#1B5E20" }}
+          >
+            <div className="rounded-full p-2" style={{ backgroundColor: "#E8F5E9" }}>
+              <Mail size={22} color="#1B5E20" />
+            </div>
+            <span className="font-semibold text-base" style={{ color: "#1B5E20" }}>
+              Continue with Email
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 my-6">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-gray-400 text-xs">OR</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
+        <div className="text-center">
+          <p className="text-gray-500 text-sm">
+            New to FaslBook?{" "}
+            <button
+              onClick={() => router.push("/role-select")}
+              className="font-bold"
+              style={{ color: "#1B5E20" }}
+            >
+              Create Account
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+STEP 2 - Replace app/(auth)/email/page.tsx with EXACTLY this:
+
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/config";
+import { Mail, Lock, ArrowLeft, Loader2, Eye, EyeOff, Wheat } from "lucide-react";
+
+export default function EmailLoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setError("Please enter email and password");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const userSnap = await getDoc(doc(db, "users", credential.user.uid));
+      if (!userSnap.exists()) {
+        window.location.replace("/role-select");
+        return;
+      }
+      const userData = userSnap.data();
+      if (!userData.role) {
+        window.location.replace("/role-select");
+        return;
+      }
+      if (!userData.organizationId) {
+        if (userData.role === "landlord") {
+          window.location.replace("/create-farm");
+        } else {
+          window.location.replace("/join-farm");
+        }
+        return;
+      }
+      window.location.replace("/overview");
+    } catch (err: any) {
+      const code = err.code ?? "";
+      if (code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password") {
+        setError("Incorrect email or password. Please try again.");
+      } else if (code === "auth/invalid-email") {
+        setError("Invalid email address.");
+      } else if (code === "auth/too-many-requests") {
+        setError("Too many attempts. Please wait and try again.");
+      } else if (code === "auth/network-request-failed") {
+        setError("Network error. Check your internet connection.");
+      } else {
+        setError("Login failed. Please try again.");
+      }
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div
+        className="flex items-center px-4 pt-12 pb-6"
+        style={{ backgroundColor: "#1B5E20" }}
+      >
+        <button onClick={() => router.back()} className="text-white mr-3">
+          <ArrowLeft size={24} />
+        </button>
+        <div className="flex items-center gap-2">
+          <Wheat size={20} color="white" />
+          <div>
+            <h1 className="text-white text-xl font-bold">Login with Email</h1>
+            <p className="text-green-200 text-xs">Welcome back!</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 px-6 pt-8 pb-10">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-6">
+            {error}
+          </div>
+        )}
+
+        <div className="mb-5">
+          <label className="text-gray-600 text-sm font-medium mb-2 block">Email Address</label>
+          <div className="flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3 focus-within:border-green-700">
+            <Mail size={20} color="#9E9E9E" className="mr-3 shrink-0" />
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="flex-1 outline-none text-gray-800 text-base bg-transparent"
+            />
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <label className="text-gray-600 text-sm font-medium mb-2 block">Password</label>
+          <div className="flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3 focus-within:border-green-700">
+            <Lock size={20} color="#9E9E9E" className="mr-3 shrink-0" />
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="flex-1 outline-none text-gray-800 text-base bg-transparent"
+            />
+            <button type="button" onClick={() => setShowPassword(!showPassword)}>
+              {showPassword ? <EyeOff size={20} color="#9E9E9E" /> : <Eye size={20} color="#9E9E9E" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="text-right mb-8">
+          <button style={{ color: "#1B5E20" }} className="text-sm font-medium">
+            Forgot Password?
+          </button>
+        </div>
+
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          className="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+          style={{ backgroundColor: "#1B5E20" }}
+        >
+          {loading ? <Loader2 size={22} className="animate-spin" /> : "Login"}
+        </button>
+
+        <div className="text-center mt-6">
+          <p className="text-gray-500 text-sm">
+            No account?{" "}
+            <button
+              onClick={() => router.push("/role-select")}
+              className="font-bold"
+              style={{ color: "#1B5E20" }}
+            >
+              Create Account
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+STEP 3 - Replace components/shared/AuthProvider.tsx with EXACTLY this:
+
+"use client";
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/config";
+import { useAuthStore } from "@/store/authStore";
+
+const PUBLIC = ["/login", "/email", "/register", "/create-farm", "/role-select", "/join-farm", "/pending"];
+
+export default function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { setUser, setOrganization, setRole, setLoading } = useAuthStore();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      const path = window.location.pathname;
+
+      if (!firebaseUser) {
+        setUser(null);
+        setOrganization(null);
+        setRole(null);
+        setLoading(false);
+        setReady(true);
+        if (!PUBLIC.includes(path)) {
+          window.location.replace("/login");
+        }
+        return;
+      }
+
+      setUser(firebaseUser);
+
+      try {
+        const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+
+        if (!userSnap.exists()) {
+          setLoading(false);
+          setReady(true);
+          if (path !== "/role-select") {
+            window.location.replace("/role-select");
+          }
+          return;
+        }
+
+        const userData = userSnap.data();
+        setRole(userData.role);
+
+        if (!userData.role) {
+          setLoading(false);
+          setReady(true);
+          if (path !== "/role-select") {
+            window.location.replace("/role-select");
+          }
+          return;
+        }
+
+        if (!userData.organizationId) {
+          setLoading(false);
+          setReady(true);
+          if (userData.role === "landlord" && path !== "/create-farm") {
+            window.location.replace("/create-farm");
+          } else if (userData.role !== "landlord" && path !== "/join-farm" && path !== "/pending") {
+            window.location.replace("/join-farm");
+          }
+          return;
+        }
+
+        const orgSnap = await getDoc(doc(db, "organizations", userData.organizationId));
+        if (orgSnap.exists()) {
+          setOrganization(orgSnap.data() as any);
+        }
+
+        setLoading(false);
+        setReady(true);
+
+        if (PUBLIC.includes(path)) {
+          window.location.replace("/overview");
+        }
+
+      } catch (error) {
+        console.error("Auth error:", error);
+        setLoading(false);
+        setReady(true);
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  if (!ready) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "white",
+        gap: "16px"
+      }}>
+        <div style={{
+          width: "48px",
+          height: "48px",
+          borderRadius: "50%",
+          border: "4px solid #e5e7eb",
+          borderTopColor: "#1B5E20",
+          animation: "spin 0.8s linear infinite"
+        }} />
+        <p style={{ color: "#9ca3af", fontSize: "14px" }}>Loading FaslBook...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}

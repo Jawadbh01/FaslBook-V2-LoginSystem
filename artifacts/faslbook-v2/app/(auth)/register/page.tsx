@@ -80,8 +80,7 @@ export default function RegisterPage() {
         auth, email, password
       );
 
-      // Show success immediately — write to Firestore in background
-      setSuccess(true);
+      // Write to Firestore in background — don't await
       setDoc(doc(db, "users", result.user.uid), {
         id: result.user.uid,
         name,
@@ -95,6 +94,13 @@ export default function RegisterPage() {
         updatedAt: serverTimestamp(),
         syncStatus: "synced",
       });
+
+      // Redirect immediately based on role — don't wait for AuthProvider
+      if (role === "landlord") {
+        window.location.replace("/create-farm");
+      } else {
+        window.location.replace("/join-farm");
+      }
 
     } catch (err: any) {
       const code = err.code ?? "";

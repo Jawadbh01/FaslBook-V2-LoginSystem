@@ -1,6 +1,5 @@
 "use client";
-
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   signInWithRedirect,
@@ -8,38 +7,82 @@ import {
   GoogleAuthProvider,
   FacebookAuthProvider,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/config";
 import { Wheat, Mail, Phone, Chrome, Loader2 } from "lucide-react";
+
+async function handleUserAfterAuth(uid: string, displayName: string | null, email: string | null, photoURL: string | null) {
+  const userRef = doc(db, "users", uid);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      id: uid,
+      name: displayName || "",
+      email: email || "",
+      phone: "",
+      photoUrl: photoURL || "",
+      role: null,
+      organizationId: null,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      syncStatus: "synced",
+    });
+    window.location.replace("/role-select");
+    return;
+  }
+
+  const userData = userSnap.data();
+  if (!userData.role) {
+    window.location.replace("/role-select");
+    return;
+  }
+  if (!userData.organizationId) {
+    if (userData.role === "landlord") {
+      window.location.replace("/create-farm");
+    } else {
+      window.location.replace("/join-farm");
+    }
+    return;
+  }
+  window.location.replace("/overview");
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     getRedirectResult(auth)
-      .then((result) => {
+      .then(async (result) => {
         if (result?.user) {
-          // AuthProvider will handle redirect automatically
-          // via onAuthStateChanged
+          await handleUserAfterAuth(
+            result.user.uid,
+            result.user.displayName,
+            result.user.email,
+            result.user.photoURL
+          );
+        } else {
+          setLoading(false);
         }
       })
       .catch((err) => {
         console.error("Redirect error:", err);
         setError("Login failed. Please try again.");
-      })
-      .finally(() => setChecking(false));
+        setLoading(false);
+      });
   }, []);
 
   const handleGoogle = async () => {
     try {
       setLoading(true);
-      setError("");
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
       await signInWithRedirect(auth, provider);
     } catch {
-      setError("Google login failed. Please try again.");
+      setError("Google login failed.");
       setLoading(false);
     }
   };
@@ -47,32 +90,28 @@ export default function LoginPage() {
   const handleFacebook = async () => {
     try {
       setLoading(true);
-      setError("");
       const provider = new FacebookAuthProvider();
       await signInWithRedirect(auth, provider);
     } catch {
-      setError("Facebook login failed. Please try again.");
+      setError("Facebook login failed.");
       setLoading(false);
     }
   };
 
-  if (checking || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4">
         <div
-          className="animate-spin rounded-full h-10 w-10 border-4 border-gray-100"
+          className="animate-spin rounded-full h-12 w-12 border-4 border-gray-100"
           style={{ borderTopColor: "#1B5E20" }}
         />
-        <p className="text-gray-400 text-sm">
-          {loading ? "Redirecting..." : "Loading..."}
-        </p>
+        <p className="text-gray-400 text-sm">Loading FaslBook...</p>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Green Top */}
       <div
         className="flex flex-col items-center justify-center pt-16 pb-10 px-6"
         style={{ backgroundColor: "#1B5E20" }}
@@ -80,19 +119,14 @@ export default function LoginPage() {
         <div className="bg-white rounded-full p-4 mb-4 shadow-lg">
           <Wheat size={48} color="#1B5E20" />
         </div>
-        <h1 className="text-white text-4xl font-bold tracking-wide">
-          FaslBook
-        </h1>
+        <h1 className="text-white text-4xl font-bold tracking-wide">FaslBook</h1>
         <p className="text-green-200 text-sm mt-1">Farm Operating System</p>
-        <p className="text-green-100 text-xl mt-3 font-semibold">
-          خوش آمدید
-        </p>
+        <p className="text-green-100 text-xl mt-3 font-semibold">خوش آمدید</p>
         <p className="text-green-200 text-xs mt-1 text-center px-8">
           Manage your farm, finances & team all in one place
         </p>
       </div>
 
-      {/* White Bottom */}
       <div className="flex-1 bg-white rounded-t-3xl -mt-4 px-6 pt-8 pb-10">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">
@@ -101,7 +135,6 @@ export default function LoginPage() {
         )}
 
         <div className="flex flex-col gap-3">
-          {/* Google */}
           <button
             onClick={handleGoogle}
             className="flex items-center gap-3 w-full bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm active:scale-95 transition-transform"
@@ -114,10 +147,9 @@ export default function LoginPage() {
             </span>
           </button>
 
-          {/* Facebook */}
           <button
             onClick={handleFacebook}
-            className="flex items-center gap-3 w-full bg-blue-600 rounded-2xl px-5 py-4 shadow-sm active:scale-95 transition-transform"
+            className="flex items-center gap-3 w-full bg-blue-600 rounded-2xl px-5 py-4 active:scale-95 transition-transform"
           >
             <div className="bg-blue-500 rounded-full p-2">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
@@ -129,7 +161,6 @@ export default function LoginPage() {
             </span>
           </button>
 
-          {/* Phone — disabled */}
           <button
             disabled
             className="flex items-center gap-3 w-full border-2 border-gray-200 rounded-2xl px-5 py-4 opacity-50 cursor-not-allowed"
@@ -141,13 +172,10 @@ export default function LoginPage() {
               <span className="font-semibold text-base text-gray-400">
                 Continue with Phone (OTP)
               </span>
-              <span className="text-xs text-gray-400">
-                Not available right now
-              </span>
+              <span className="text-xs text-gray-400">Not available right now</span>
             </div>
           </button>
 
-          {/* Email */}
           <button
             onClick={() => router.push("/email")}
             className="flex items-center gap-3 w-full border-2 rounded-2xl px-5 py-4 active:scale-95 transition-transform"
@@ -180,10 +208,6 @@ export default function LoginPage() {
             </button>
           </p>
         </div>
-
-        <p className="text-center text-gray-300 text-xs mt-8">
-          FaslBook V2 • Farm Operating System
-        </p>
       </div>
     </div>
   );

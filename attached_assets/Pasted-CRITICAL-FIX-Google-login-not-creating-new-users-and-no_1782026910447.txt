@@ -1,7 +1,16 @@
+CRITICAL FIX - Google login not creating new users and not redirecting to role-select.
+
+The problem is in components/shared/AuthProvider.tsx
+When Google login completes, onAuthStateChanged fires but the code is either:
+1. Not checking Firestore at all
+2. Finding partial data and going to wrong page
+
+Replace the entire AuthProvider.tsx with EXACTLY this code:
+
 "use client";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
 
@@ -27,43 +36,59 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         return;
       }
 
-      setUser(firebaseUser);
-
       try {
-        const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+        setUser(firebaseUser);
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
 
         if (!userSnap.exists()) {
+          // Brand new user - never registered before
+          // Create basic user document with no role
+          await setDoc(userRef, {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || "",
+            email: firebaseUser.email || "",
+            phone: firebaseUser.phoneNumber || "",
+            photoUrl: firebaseUser.photoURL || "",
+            role: null,
+            organizationId: null,
+            status: "pending",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            syncStatus: "synced",
+          });
           setLoading(false);
           setReady(true);
-          if (path !== "/role-select") {
-            window.location.replace("/role-select");
-          }
+          window.location.replace("/role-select");
           return;
         }
 
+        // User document exists
         const userData = userSnap.data();
         setRole(userData.role);
 
+        // No role selected yet - send to role select
         if (!userData.role) {
           setLoading(false);
           setReady(true);
-          if (path !== "/role-select") {
-            window.location.replace("/role-select");
-          }
+          window.location.replace("/role-select");
           return;
         }
 
+        // Has role but no organization
         if (!userData.organizationId) {
           setLoading(false);
           setReady(true);
-          if (userData.role === "landlord" && path !== "/create-farm") {
+          if (userData.role === "landlord") {
             window.location.replace("/create-farm");
-          } else if (userData.role !== "landlord" && path !== "/join-farm" && path !== "/pending") {
+          } else {
+            // Check if has pending join request
             window.location.replace("/join-farm");
           }
           return;
         }
 
+        // Has role and organization - fetch org and go to dashboard
         const orgSnap = await getDoc(doc(db, "organizations", userData.organizationId));
         if (orgSnap.exists()) {
           setOrganization(orgSnap.data() as any);
@@ -72,6 +97,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         setLoading(false);
         setReady(true);
 
+        // Only redirect if on a public page
         if (PUBLIC.includes(path)) {
           window.location.replace("/overview");
         }
@@ -105,7 +131,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           borderTopColor: "#1B5E20",
           animation: "spin 0.8s linear infinite"
         }} />
-        <p style={{ color: "#9ca3af", fontSize: "14px" }}>Loading FaslBook...</p>
+        <p style={{ color: "#9ca3af", fontSize: "14px" }}>
+          Loading FaslBook...
+        </p>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -113,3 +141,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   return <>{children}</>;
 }
+
+ALSO fix app/(auth)/login/page.tsx:
+Change bottom text from "Create Farm" to "Create Account"
+Change onClick to navigate to /role-select
+
+ALSO fix app/(auth)/role-select/page.tsx:
+Make sure clicking Landlord goes to /register?role=landlord
+Make sure clicking Manager goes to /register?role=manager  
+Make sure clicking Farmer goes to /register?role=farmer
+
+ALSO fix app/(auth)/register/page.tsx:
+After createUserWithEmailAndPassword and setDoc to Firestore:
+If role is landlord → window.location.replace("/create-farm")
+If role is manager or farmer → window.location.replace("/join-farm")
+Do this immediately after success, do not wait for AuthProvider.
