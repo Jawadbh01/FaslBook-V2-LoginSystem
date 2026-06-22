@@ -2,16 +2,22 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   GoogleAuthProvider,
   FacebookAuthProvider,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc, getDoc, setDoc, serverTimestamp,
+} from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
 import { Wheat, Mail, Phone, Chrome, Loader2 } from "lucide-react";
 
-async function handleUserAfterAuth(uid: string, displayName: string | null, email: string | null, photoURL: string | null) {
+async function handleUserAfterAuth(
+  uid: string,
+  displayName: string | null,
+  email: string | null,
+  photoURL: string | null
+) {
   const userRef = doc(db, "users", uid);
   const userSnap = await getDoc(userRef);
 
@@ -39,7 +45,9 @@ async function handleUserAfterAuth(uid: string, displayName: string | null, emai
     return;
   }
   if (!userData.organizationId) {
-    window.location.replace(userData.role === "landlord" ? "/create-farm" : "/join-farm");
+    window.location.replace(
+      userData.role === "landlord" ? "/create-farm" : "/join-farm"
+    );
     return;
   }
   window.location.replace("/overview");
@@ -47,38 +55,31 @@ async function handleUserAfterAuth(uid: string, displayName: string | null, emai
 
 export default function LoginPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (result?.user) {
-          await handleUserAfterAuth(
-            result.user.uid,
-            result.user.displayName,
-            result.user.email,
-            result.user.photoURL
-          );
-        } else {
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        console.error("Redirect error:", err);
-        setError("Login failed. Please try again.");
-        setLoading(false);
-      });
-  }, []);
 
   const handleGoogle = async () => {
     try {
       setLoading(true);
+      setError("");
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      await signInWithRedirect(auth, provider);
-    } catch {
-      setError("Google login failed.");
+      const result = await signInWithPopup(auth, provider);
+      await handleUserAfterAuth(
+        result.user.uid,
+        result.user.displayName,
+        result.user.email,
+        result.user.photoURL
+      );
+    } catch (err: any) {
+      console.error("Google error:", err);
+      if (err.code === "auth/popup-blocked") {
+        setError("Popup was blocked. Please allow popups and try again.");
+      } else if (err.code === "auth/popup-closed-by-user") {
+        setError("Login cancelled. Please try again.");
+      } else {
+        setError("Google login failed. Please try again.");
+      }
       setLoading(false);
     }
   };
@@ -86,10 +87,18 @@ export default function LoginPage() {
   const handleFacebook = async () => {
     try {
       setLoading(true);
+      setError("");
       const provider = new FacebookAuthProvider();
-      await signInWithRedirect(auth, provider);
-    } catch {
-      setError("Facebook login failed.");
+      const result = await signInWithPopup(auth, provider);
+      await handleUserAfterAuth(
+        result.user.uid,
+        result.user.displayName,
+        result.user.email,
+        result.user.photoURL
+      );
+    } catch (err: any) {
+      console.error("Facebook error:", err);
+      setError("Facebook login failed. Please try again.");
       setLoading(false);
     }
   };
@@ -101,7 +110,7 @@ export default function LoginPage() {
           className="animate-spin rounded-full h-12 w-12 border-4 border-gray-100"
           style={{ borderTopColor: "#1B5E20" }}
         />
-        <p className="text-gray-400 text-sm">Loading FaslBook...</p>
+        <p className="text-gray-400 text-sm">Signing in...</p>
       </div>
     );
   }
@@ -115,9 +124,13 @@ export default function LoginPage() {
         <div className="bg-white rounded-full p-4 mb-4 shadow-lg">
           <Wheat size={48} color="#1B5E20" />
         </div>
-        <h1 className="text-white text-4xl font-bold tracking-wide">FaslBook</h1>
+        <h1 className="text-white text-4xl font-bold tracking-wide">
+          FaslBook
+        </h1>
         <p className="text-green-200 text-sm mt-1">Farm Operating System</p>
-        <p className="text-green-100 text-xl mt-3 font-semibold">خوش آمدید</p>
+        <p className="text-green-100 text-xl mt-3 font-semibold">
+          خوش آمدید
+        </p>
         <p className="text-green-200 text-xs mt-1 text-center px-8">
           Manage your farm, finances & team all in one place
         </p>
@@ -133,7 +146,8 @@ export default function LoginPage() {
         <div className="flex flex-col gap-3">
           <button
             onClick={handleGoogle}
-            className="flex items-center gap-3 w-full bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm active:scale-95 transition-transform"
+            disabled={loading}
+            className="flex items-center gap-3 w-full bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm active:scale-95 transition-transform disabled:opacity-60"
           >
             <div className="bg-red-50 rounded-full p-2">
               <Chrome size={22} color="#EA4335" />
@@ -145,7 +159,8 @@ export default function LoginPage() {
 
           <button
             onClick={handleFacebook}
-            className="flex items-center gap-3 w-full bg-blue-600 rounded-2xl px-5 py-4 active:scale-95 transition-transform"
+            disabled={loading}
+            className="flex items-center gap-3 w-full bg-blue-600 rounded-2xl px-5 py-4 active:scale-95 transition-transform disabled:opacity-60"
           >
             <div className="bg-blue-500 rounded-full p-2">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
@@ -168,19 +183,28 @@ export default function LoginPage() {
               <span className="font-semibold text-base text-gray-400">
                 Continue with Phone (OTP)
               </span>
-              <span className="text-xs text-gray-400">Not available right now</span>
+              <span className="text-xs text-gray-400">
+                Not available right now
+              </span>
             </div>
           </button>
 
           <button
             onClick={() => router.push("/email")}
-            className="flex items-center gap-3 w-full border-2 rounded-2xl px-5 py-4 active:scale-95 transition-transform"
+            disabled={loading}
+            className="flex items-center gap-3 w-full border-2 rounded-2xl px-5 py-4 active:scale-95 transition-transform disabled:opacity-60"
             style={{ borderColor: "#1B5E20" }}
           >
-            <div className="rounded-full p-2" style={{ backgroundColor: "#E8F5E9" }}>
+            <div
+              className="rounded-full p-2"
+              style={{ backgroundColor: "#E8F5E9" }}
+            >
               <Mail size={22} color="#1B5E20" />
             </div>
-            <span className="font-semibold text-base" style={{ color: "#1B5E20" }}>
+            <span
+              className="font-semibold text-base"
+              style={{ color: "#1B5E20" }}
+            >
               Continue with Email
             </span>
           </button>
