@@ -1,0 +1,755 @@
+FaslBook V2 - Complete Product Documentation
+
+Vision
+
+FaslBook is a farm operating system for landlords, managers, farmers, and workers.
+
+The system must be workflow-driven, not screen-driven.
+
+Every action should automatically update all connected modules.
+
+Example:
+
+Manager gives 10 Maund Wheat to Farmer
+
+Automatically:
+
+- Godown stock decreases
+- Farmer stock increases
+- Inventory history created
+- Ledger updated
+- Reports updated
+- Activity log created
+
+Users should never need to update multiple modules manually.
+
+The database must always remain the single source of truth.
+
+---
+
+User Roles
+
+Landlord
+
+Full access.
+
+Can:
+
+- View all data
+- Manage land
+- Manage parcels
+- Manage farmers
+- Manage managers
+- Manage workers
+- Manage inventory
+- Manage dealers
+- Manage loans
+- Manage finances
+- Generate reports
+- Approve join requests
+
+Cannot be removed except by ownership transfer.
+
+---
+
+Manager
+
+Operational access.
+
+Can:
+
+- Add expenses
+- Add income
+- Manage inventory
+- Manage workers
+- Manage attendance
+- Manage crop records
+- Manage dealer transactions
+
+Cannot:
+
+- Delete organization
+- Transfer ownership
+- Delete landlord
+
+---
+
+Farmer
+
+Limited access.
+
+Can:
+
+- View assigned parcels
+- View assigned crops
+- View stock received
+- View harvest records
+- View own reports
+
+Cannot see other farmers or organization finances.
+
+---
+
+Worker
+
+Minimal access.
+
+Can:
+
+- View attendance
+- View payments
+- View assigned work
+
+Cannot access financial records.
+
+---
+
+Authentication System
+
+Supported login methods:
+
+1. Google Login
+2. Facebook Login
+3. Phone OTP Login
+4. Email + Password Login
+5. Dev Login (development only)
+
+---
+
+Email Login Flow
+
+Email
++
+Password
++
+Email OTP Verification
+
+After successful verification:
+
+Profile Setup
+
+Required:
+
+- Profile Photo
+- Full Name
+- Phone Number
+- Role
+
+---
+
+Organization Structure
+
+Organization
+│
+├── Landlord
+├── Managers
+├── Farmers
+├── Workers
+├── Parcels
+├── Crops
+├── Inventory
+├── Dealers
+├── Loans
+├── Income
+├── Expenses
+├── Attendance
+├── Ledger
+└── Reports
+
+Everything belongs to Organization ID.
+
+Nothing exists outside an organization.
+
+---
+
+Farm Join System
+
+Landlord
+
+Creates organization.
+
+Required:
+
+- Farm Name
+- Village
+- District
+- Province
+
+Generate Farm ID automatically.
+
+Example:
+
+FB-7H9D4K
+
+---
+
+Manager
+
+Enter Farm ID.
+
+Request Join.
+
+Landlord approves.
+
+---
+
+Farmer
+
+Enter Farm ID.
+
+Request Join.
+
+Landlord approves.
+
+---
+
+Worker
+
+Invite only.
+
+No self registration.
+
+---
+
+Database Collections
+
+organizations
+
+users
+
+parcels
+
+crops
+
+inventoryItems
+
+inventoryTransactions
+
+dealers
+
+dealerTransactions
+
+expenses
+
+income
+
+loans
+
+workers
+
+attendance
+
+ledgerEntries
+
+notifications
+
+settings
+
+activityLogs
+
+---
+
+Core System Rules
+
+Rule 1:
+
+Never type names manually.
+
+Always select existing records.
+
+Example:
+
+Bad:
+Worker Name = Ahmed
+
+Good:
+Select Worker From Team
+
+---
+
+Rule 2:
+
+Balances are never editable.
+
+Everything is calculated.
+
+---
+
+Rule 3:
+
+Ledger is system-generated only.
+
+No manual ledger entries.
+
+---
+
+Rule 4:
+
+Every action creates activity logs.
+
+Track:
+
+- User
+- Action
+- Date
+- Record
+
+---
+
+Parcel System
+
+Parcel Fields:
+
+- Name
+- Acres
+- Location
+- Assigned Farmer
+- Current Crop
+
+Parcel stores complete history.
+
+---
+
+Crop System
+
+Crop Fields:
+
+- Crop Name
+- Season
+- Parcel
+- Assigned Farmer
+- Sowing Date
+- Expected Harvest Date
+
+Statuses:
+
+- Planned
+- Sown
+- Growing
+- Ready
+- Harvested
+- Closed
+
+---
+
+Harvest Workflow
+
+Harvest Entry
+
+Creates:
+
+- Harvest Record
+- Inventory Stock In
+- Ledger Entry
+- Crop Update
+- Reports Update
+
+Automatically.
+
+---
+
+Godown / Inventory System
+
+Inventory Categories:
+
+- Seed
+- Fertilizer
+- Pesticide
+- Fuel
+- Crop Stock
+- Machinery Parts
+- Other
+
+---
+
+Stock In Sources:
+
+- Purchase
+- Harvest
+- Transfer
+- Adjustment
+
+---
+
+Stock Out Sources:
+
+- Farmer Transfer
+- Sale
+- Consumption
+- Damage
+- Loss
+
+---
+
+Inventory Formula
+
+Current Stock
+
+=
+
+Stock In
+
+- 
+
+Stock Out
+
+Inventory quantities are never edited manually.
+
+---
+
+Farmer Stock Workflow
+
+Manager gives:
+
+10 Maund Wheat
+
+Select Farmer
+
+System automatically:
+
+- Godown Stock -
+- Farmer Stock +
+- Ledger Entry
+- Activity Log
+- Reports Update
+
+---
+
+Dealer System
+
+Dealer Fields:
+
+- Name
+- Phone
+- Address
+- Notes
+
+Dealer provides:
+
+- Fertilizer
+- Seeds
+- Fuel
+- Other Supplies
+
+---
+
+Purchase On Credit
+
+Automatically creates:
+
+- Expense
+- Dealer Payable
+- Ledger Entry
+
+---
+
+Borrowing System
+
+Borrow From:
+
+- Person
+- Relative
+- Friend
+- Bank
+- Other
+
+Track:
+
+- Borrowed Amount
+- Paid Amount
+- Remaining Amount
+
+Automatically updates ledger.
+
+---
+
+Income System
+
+Income Types:
+
+- Crop Sale
+- Rent
+- Livestock
+- Other
+
+Every income creates ledger entries automatically.
+
+---
+
+Expense System
+
+Expense Fields:
+
+- Category
+- Amount
+- Date
+- Parcel
+- Vendor
+- Photo
+- Notes
+
+Photo stored in Firebase Storage.
+
+---
+
+Expense Categories
+
+- Seed
+- Fertilizer
+- Water
+- Labour
+- Fuel
+- Machinery
+- Transport
+- Pesticide
+- Other
+
+---
+
+Team System
+
+Farmers
+
+Store:
+
+- Profile
+- Parcels
+- Crops
+- Harvest History
+
+---
+
+Workers
+
+Types:
+
+Daily Worker
+
+- Daily Rate
+- Attendance
+- Payment History
+
+Monthly Worker
+
+- Salary
+- Attendance
+- Payment History
+
+---
+
+Attendance System
+
+Statuses:
+
+- Present
+- Absent
+- Half Day
+- Leave
+
+Attendance automatically affects worker payments.
+
+---
+
+Ledger System
+
+Read-only.
+
+Sources:
+
+- Income
+- Expenses
+- Loans
+- Dealer Credit
+- Inventory Sales
+- Worker Payments
+
+Everything posts here automatically.
+
+---
+
+Reporting System
+
+Dashboard Report
+
+Farm-wide report.
+
+Includes:
+
+- Income
+- Expense
+- Profit
+- Inventory Value
+- Loans
+- Dealer Dues
+
+---
+
+Farmer Report
+
+Includes:
+
+- Parcels
+- Crops
+- Harvest
+- Stock
+- Expenses
+
+---
+
+Worker Report
+
+Includes:
+
+- Attendance
+- Payments
+- Pending Amount
+
+---
+
+Dealer Report
+
+Includes:
+
+- Purchases
+- Payments
+- Outstanding Credit
+
+---
+
+Godown Report
+
+Includes:
+
+- Stock In
+- Stock Out
+- Current Inventory
+- Inventory Value
+
+---
+
+Parcel Report
+
+Includes:
+
+- Expenses
+- Crop
+- Harvest
+- Profitability
+
+---
+
+Export Options
+
+- PDF
+- Excel
+- Print
+- WhatsApp Share
+
+---
+
+Offline First
+
+Application must work without internet.
+
+Workflow:
+
+User Action
+
+↓
+
+Local Cache
+
+↓
+
+Instant UI Update
+
+↓
+
+Background Sync
+
+↓
+
+Firebase
+
+Use Firestore Offline Persistence.
+
+Every record stores:
+
+- createdAt
+- updatedAt
+- syncStatus
+
+syncStatus:
+
+- pending
+- synced
+- failed
+
+---
+
+Profile & Settings
+
+Profile
+
+- Change Photo
+- Change Name
+- Change Phone
+
+Settings
+
+- Theme
+- Language
+- Notifications
+
+Account
+
+- Logout
+- Delete Account
+
+---
+
+10 Development Phases
+
+PHASE 1
+Authentication + Profile Setup + Organization Setup
+
+PHASE 2
+Role Management + Farm Join System
+
+PHASE 3
+Dashboard + Analytics Cards
+
+PHASE 4
+Parcel Management + Land Structure
+
+PHASE 5
+Crop Management + Harvest Workflow
+
+PHASE 6
+Godown + Inventory + Farmer Stock Transfers
+
+PHASE 7
+Income + Expense + Ledger Engine
+
+PHASE 8
+Dealer System + Borrowing System
+
+PHASE 9
+Team Management + Attendance + Payments
+
+PHASE 10
+Reports + Offline Sync + Notifications + Security Rules + Production Release
+
+Success Criteria:
+
+Every business action updates all connected modules automatically.
+
+No duplicate data.
+
+No manual balance editing.
+
+No disconnected screens.
+
+Single source of truth = Firestore Database.
+
+
