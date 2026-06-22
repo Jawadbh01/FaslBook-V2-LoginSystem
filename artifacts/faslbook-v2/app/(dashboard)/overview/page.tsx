@@ -70,6 +70,7 @@ export default function OverviewPage() {
   const [pendingLoans, setPendingLoans]   = useState(0);
   const [dealerDues, setDealerDues]       = useState(0);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [recentLedger, setRecentLedger]   = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [loading, setLoading]             = useState(true);
   const [copied, setCopied]               = useState(false);
@@ -92,13 +93,17 @@ export default function OverviewPage() {
     const unsubs: (() => void)[] = [];
 
     unsubs.push(onSnapshot(
-      query(collection(db, "income"), where("organizationId", "==", orgId)),
-      (snap) => setIncome(snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0))
-    ));
-
-    unsubs.push(onSnapshot(
-      query(collection(db, "expenses"), where("organizationId", "==", orgId)),
-      (snap) => setExpense(snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0))
+      query(collection(db, "ledgerEntries"), where("organizationId", "==", orgId)),
+      (snap) => {
+        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        setIncome(all.filter((e: any) => e.type === "credit").reduce((s: number, e: any) => s + (e.amount || 0), 0));
+        setExpense(all.filter((e: any) => e.type === "debit").reduce((s: number, e: any) => s + (e.amount || 0), 0));
+        setRecentLedger(
+          all
+            .sort((a: any, b: any) => (b.date > a.date ? 1 : -1))
+            .slice(0, 5)
+        );
+      }
     ));
 
     unsubs.push(onSnapshot(
@@ -367,6 +372,41 @@ export default function OverviewPage() {
           })}
         </div>
       </div>
+
+      {/* ── Recent Transactions ───────────────────────────────── */}
+      {recentLedger.length > 0 && (
+        <div className="px-4 mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-bold text-gray-800 text-sm">Recent Transactions</p>
+            <Link href="/ledger" className="text-xs font-medium flex items-center gap-1" style={{ color: "#1B5E20" }}>
+              View all <ChevronRight size={12} color="#1B5E20" />
+            </Link>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            {recentLedger.map((entry, i) => {
+              const isCredit = entry.type === "credit";
+              return (
+                <div key={entry.id} className="flex items-center gap-3 px-4 py-3"
+                  style={{ borderBottom: i < recentLedger.length - 1 ? "1px solid #F5F5F5" : "none" }}>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: isCredit ? "#E8F5E9" : "#FFEBEE" }}>
+                    {isCredit
+                      ? <TrendingUp size={16} color="#1B5E20" />
+                      : <TrendingDown size={16} color="#C62828" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gray-800 text-sm font-medium truncate">{entry.categoryLabel || entry.category}</p>
+                    <p className="text-gray-400 text-xs">{entry.date}</p>
+                  </div>
+                  <p className="font-bold text-sm shrink-0" style={{ color: isCredit ? "#1B5E20" : "#C62828" }}>
+                    {isCredit ? "+" : "−"}{fmt(entry.amount)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Recent Activity ───────────────────────────────────── */}
       <div className="px-4 mt-4">

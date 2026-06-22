@@ -155,7 +155,7 @@ export default function LedgerPage() {
     const parcel = parcels.find((p) => p.id === incomeForm.parcelId);
     try {
       setSaving(true); setFormError("");
-      await addDoc(collection(db, "ledgerEntries"), {
+      const ref = await addDoc(collection(db, "ledgerEntries"), {
         organizationId: orgId,
         type: "credit",
         category: incomeForm.type,
@@ -169,6 +169,20 @@ export default function LedgerPage() {
         createdAt: serverTimestamp(),
         syncStatus: "synced",
       });
+      // Optimistic update — entry appears in list instantly without waiting for onSnapshot
+      setEntries((prev) => [{
+        id: ref.id,
+        type: "credit" as const,
+        category: incomeForm.type,
+        categoryLabel: incomeTypes[incomeForm.type]?.label || incomeForm.type,
+        amount: Number(incomeForm.amount),
+        date: incomeForm.date,
+        parcelId: incomeForm.parcelId || "",
+        parcelName: parcel?.name || "",
+        notes: incomeForm.notes,
+        organizationId: orgId || "",
+        createdAt: null,
+      }, ...prev.filter((e) => e.id !== ref.id)]);
       await addDoc(collection(db, "activityLogs"), {
         organizationId: orgId,
         userId: auth.currentUser?.uid || "",
@@ -192,7 +206,7 @@ export default function LedgerPage() {
     const dealer = dealers.find((d) => d.id === expenseForm.dealerId);
     try {
       setSaving(true); setFormError("");
-      await addDoc(collection(db, "ledgerEntries"), {
+      const ref = await addDoc(collection(db, "ledgerEntries"), {
         organizationId: orgId,
         type: "debit",
         category: expenseForm.category,
@@ -208,6 +222,22 @@ export default function LedgerPage() {
         createdAt: serverTimestamp(),
         syncStatus: "synced",
       });
+      // Optimistic update — entry appears in list instantly without waiting for onSnapshot
+      setEntries((prev) => [{
+        id: ref.id,
+        type: "debit" as const,
+        category: expenseForm.category,
+        categoryLabel: expenseCategories[expenseForm.category]?.label || expenseForm.category,
+        amount: Number(expenseForm.amount),
+        date: expenseForm.date,
+        parcelId: expenseForm.parcelId || "",
+        parcelName: parcel?.name || "",
+        dealerId: expenseForm.dealerId || "",
+        dealerName: dealer?.name || "",
+        notes: expenseForm.notes,
+        organizationId: orgId || "",
+        createdAt: null,
+      }, ...prev.filter((e) => e.id !== ref.id)]);
       await addDoc(collection(db, "activityLogs"), {
         organizationId: orgId,
         userId: auth.currentUser?.uid || "",
