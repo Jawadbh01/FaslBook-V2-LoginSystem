@@ -1,0 +1,99 @@
+Fix these exact bugs found in code review:
+
+BUG 1 - register/page.tsx - setDoc not awaited causing redirect loops:
+The setDoc call is not awaited. User gets redirected before Firestore write completes.
+AuthProvider then finds empty/missing user doc and causes redirect loop.
+
+Fix handleRegister function - replace the setDoc and redirect section with:
+
+setLoading(true);
+setError("");
+
+const result = await createUserWithEmailAndPassword(auth, email, password);
+
+await setDoc(doc(db, "users", result.user.uid), {
+  id: result.user.uid,
+  name,
+  email,
+  phone,
+  photoUrl: "",
+  role,
+  organizationId: null,
+  status: "pending",
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+  syncStatus: "synced",
+});
+
+if (role === "landlord") {
+  window.location.replace("/create-farm");
+} else {
+  window.location.replace("/join-farm");
+}
+
+Must await setDoc before redirecting. This is critical.
+
+BUG 2 - login/page.tsx - handleUserAfterAuth email check causing wrong routing:
+The email fallback check in step 2 is routing returning Google users incorrectly.
+Remove the email query entirely. Only check by UID.
+
+Replace entire handleUserAfterAuth function with:
+
+async function handleUserAfterAuth(uid: string, displayName: string | null, email: string | null, photoURL: string | null) {
+  const userRef = doc(db, "users", uid);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      id: uid,
+      name: displayName || "",
+      email: email || "",
+      phone: "",
+      photoUrl: photoURL || "",
+      role: null,
+      organizationId: null,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      syncStatus: "synced",
+    });
+    window.location.replace("/role-select");
+    return;
+  }
+
+  const userData = userSnap.data();
+  if (!userData.role) {
+    window.location.replace("/role-select");
+    return;
+  }
+  if (!userData.organizationId) {
+    window.location.replace(userData.role === "landlord" ? "/create-farm" : "/join-farm");
+    return;
+  }
+  window.location.replace("/overview");
+}
+
+BUG 3 - lib/firebase/config.ts - persistentLocalCache causing mobile issues:
+Replace initializeFirestore with persistentLocalCache with simpler version:
+
+import { getFirestore } from "firebase/firestore";
+export const db = getFirestore(app);
+
+Remove the initializeFirestore and persistentLocalCache imports entirely.
+
+BUG 4 - app/page.tsx double redirect:
+Change app/page.tsx from redirect("/login") to:
+
+import { redirect } from "next/navigation";
+export default function Home() {
+  redirect("/login");
+}
+
+This is fine as is - leave it.
+
+BUG 5 - register/page.tsx dead success state:
+The success state is set but never shown because window.location.replace happens first.
+Remove the success state and success screen entirely from register page.
+Just show loading spinner on button while awaiting setDoc.
+
+Do not change any other files. Only fix these 5 exact issues.

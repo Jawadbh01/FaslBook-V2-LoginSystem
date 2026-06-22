@@ -8,7 +8,7 @@ import { auth, db } from "@/lib/firebase/config";
 import {
   User, Mail, Lock, Phone,
   ArrowLeft, Loader2, Eye, EyeOff,
-  Wheat, Users, Tractor, CheckCircle,
+  Wheat, Users, Tractor,
 } from "lucide-react";
 
 const roleConfig: Record<string, {
@@ -56,7 +56,6 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
 
   const handleRegister = async () => {
     if (!name || !email || !phone || !password || !confirm) {
@@ -76,12 +75,9 @@ export default function RegisterPage() {
       setLoading(true);
       setError("");
 
-      const result = await createUserWithEmailAndPassword(
-        auth, email, password
-      );
+      const result = await createUserWithEmailAndPassword(auth, email, password);
 
-      // Write to Firestore in background — don't await
-      setDoc(doc(db, "users", result.user.uid), {
+      await setDoc(doc(db, "users", result.user.uid), {
         id: result.user.uid,
         name,
         email,
@@ -95,7 +91,6 @@ export default function RegisterPage() {
         syncStatus: "synced",
       });
 
-      // Redirect immediately based on role — don't wait for AuthProvider
       if (role === "landlord") {
         window.location.replace("/create-farm");
       } else {
@@ -118,44 +113,6 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
-
-  // Success screen
-  if (success) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
-        <div
-          className="w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-lg"
-          style={{ backgroundColor: config.bg }}
-        >
-          <CheckCircle size={52} color={config.color} />
-        </div>
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">
-          Account Created! 🎉
-        </h1>
-        <p className="text-gray-500 text-sm mb-1">
-          Welcome to FaslBook, <strong>{name}</strong>!
-        </p>
-        <div
-          className="px-4 py-2 rounded-full mt-2 mb-6"
-          style={{ backgroundColor: config.bg }}
-        >
-          <span
-            className="text-sm font-bold"
-            style={{ color: config.color }}
-          >
-            {config.label} • {config.urdu}
-          </span>
-        </div>
-        <p className="text-gray-400 text-xs mb-8">
-          Setting up your account...
-        </p>
-        <div
-          className="animate-spin rounded-full h-8 w-8 border-4 border-gray-100"
-          style={{ borderTopColor: config.color }}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
