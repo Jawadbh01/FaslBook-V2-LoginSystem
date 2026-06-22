@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import TopBar from "./TopBar";
 
-const HIDDEN_PATHS = ["/crops", "/inventory"];
+const HIDDEN_PATHS = ["/crops", "/inventory", "/ledger", "/income", "/expenses"];
 
 export default function ConditionalTopBar() {
   const pathname = usePathname();
