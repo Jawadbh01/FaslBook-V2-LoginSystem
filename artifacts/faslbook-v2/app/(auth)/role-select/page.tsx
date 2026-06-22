@@ -1,8 +1,9 @@
 "use client";
-
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/store/authStore";
-import { Wheat, Users, Tractor, ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { doc, updateDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/config";
+import { Wheat, Users, Tractor, ArrowLeft, Loader2 } from "lucide-react";
 
 const roles = [
   {
@@ -36,11 +37,44 @@ const roles = [
 
 export default function RoleSelectPage() {
   const router = useRouter();
-  const { setRole } = useAuthStore();
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
+  const [selecting, setSelecting] = useState<string | null>(null);
 
-  const handleSelect = (roleId: string) => {
-    setRole(roleId as any);
-    router.push(`/register?role=${roleId}`);
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user) {
+      setIsGoogleUser(true);
+    }
+  }, []);
+
+  const handleSelect = async (roleId: string) => {
+    const user = auth.currentUser;
+
+    if (user && isGoogleUser) {
+      try {
+        setSelecting(roleId);
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          await updateDoc(userRef, {
+            role: roleId,
+            updatedAt: serverTimestamp(),
+          });
+        }
+
+        if (roleId === "landlord") {
+          window.location.replace("/create-farm");
+        } else {
+          window.location.replace("/join-farm");
+        }
+      } catch (err) {
+        console.error("Role update error:", err);
+        setSelecting(null);
+      }
+    } else {
+      router.push(`/register?role=${roleId}`);
+    }
   };
 
   return (
@@ -62,10 +96,13 @@ export default function RoleSelectPage() {
           </div>
           <div>
             <h1 className="text-white text-xl font-bold">
-              Who are you?
+              {isGoogleUser ? "Almost Done!" : "Who are you?"}
             </h1>
             <p className="text-green-200 text-xs">
-              آپ کون ہیں؟ — Select your role
+              {isGoogleUser
+                ? "Just select your role to continue"
+                : "آپ کون ہیں؟ — Select your role"
+              }
             </p>
           </div>
         </div>
@@ -74,28 +111,33 @@ export default function RoleSelectPage() {
       {/* Role Cards */}
       <div className="flex-1 px-6 pt-8 pb-10">
         <p className="text-gray-500 text-sm text-center mb-8">
-          Choose your role to get started with FaslBook
+          {isGoogleUser
+            ? "Your account is ready. Choose your role on this farm."
+            : "Choose your role to get started with FaslBook"
+          }
         </p>
 
         <div className="flex flex-col gap-4">
           {roles.map((role) => {
             const Icon = role.icon;
+            const isLoading = selecting === role.id;
             return (
               <button
                 key={role.id}
                 onClick={() => handleSelect(role.id)}
-                className="flex items-center gap-4 w-full rounded-2xl p-5 border-2 border-gray-100 active:scale-95 transition-transform text-left"
+                disabled={selecting !== null}
+                className="flex items-center gap-4 w-full rounded-2xl p-5 border-2 border-gray-100 active:scale-95 transition-transform text-left disabled:opacity-60"
                 style={{ backgroundColor: "#FAFAFA" }}
               >
-                {/* Icon */}
                 <div
                   className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
                   style={{ backgroundColor: role.bg }}
                 >
-                  <Icon size={28} color={role.color} />
+                  {isLoading
+                    ? <Loader2 size={28} color={role.color} className="animate-spin" />
+                    : <Icon size={28} color={role.color} />
+                  }
                 </div>
-
-                {/* Text */}
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-bold text-gray-800 text-lg">
@@ -112,31 +154,28 @@ export default function RoleSelectPage() {
                     {role.description}
                   </p>
                 </div>
-
-                {/* Arrow */}
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
                   style={{ backgroundColor: role.bg }}
                 >
-                  <span style={{ color: role.color }} className="font-bold">
-                    →
-                  </span>
+                  <span style={{ color: role.color }} className="font-bold">→</span>
                 </div>
               </button>
             );
           })}
         </div>
 
-        {/* Worker Note */}
-        <div
-          className="mt-8 px-4 py-4 rounded-2xl"
-          style={{ backgroundColor: "#F5F5F5" }}
-        >
-          <p className="text-gray-500 text-xs text-center">
-            👷 <strong>Workers</strong> are invited by landlord or manager.
-            Workers cannot self-register.
-          </p>
-        </div>
+        {!isGoogleUser && (
+          <div
+            className="mt-8 px-4 py-4 rounded-2xl"
+            style={{ backgroundColor: "#F5F5F5" }}
+          >
+            <p className="text-gray-500 text-xs text-center">
+              👷 <strong>Workers</strong> are invited by landlord or manager.
+              Workers cannot self-register.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
