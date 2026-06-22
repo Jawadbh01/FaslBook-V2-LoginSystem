@@ -119,7 +119,9 @@ export default function CropsPage() {
     unsubs.push(onSnapshot(
       query(collection(db, "parcels"), where("organizationId", "==", orgId)),
       (snap) => {
-        setParcels(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Parcel)));
+        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Parcel));
+        console.log("[Crops] parcels loaded:", data.length, data);
+        setParcels(data);
       }
     ));
 
@@ -414,7 +416,7 @@ export default function CropsPage() {
                 type="date"
                 value={form.sowingDate}
                 onChange={(e) => setForm({ ...form, sowingDate: e.target.value })}
-                className="flex-1 outline-none text-gray-800 text-base bg-transparent"
+                className="flex-1 outline-none text-gray-800 text-base bg-transparent [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden"
               />
             </div>
           </div>
@@ -430,7 +432,7 @@ export default function CropsPage() {
                 type="date"
                 value={form.expectedHarvest}
                 onChange={(e) => setForm({ ...form, expectedHarvest: e.target.value })}
-                className="flex-1 outline-none text-gray-800 text-base bg-transparent"
+                className="flex-1 outline-none text-gray-800 text-base bg-transparent [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden"
               />
             </div>
           </div>
