@@ -592,7 +592,8 @@ export default function GodownPage() {
 
                   {/* Action buttons */}
                   {canEdit && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
                       <button
                         onClick={() => { setSelected(item); setView("stockIn"); }}
                         className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
@@ -604,6 +605,13 @@ export default function GodownPage() {
                         className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
                         style={{ backgroundColor: "#B71C1C" }}>
                         <ArrowUpFromLine size={15} />Stock Out
+                      </button>
+                      </div>
+                      <button
+                        onClick={() => { setSelected(item); setView("transfer"); }}
+                        className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform border-2"
+                        style={{ borderColor: "#1B5E20", color: "#1B5E20", backgroundColor: "white" }}>
+                        <Users size={15} />Transfer to Farmer
                       </button>
                     </div>
                   )}
