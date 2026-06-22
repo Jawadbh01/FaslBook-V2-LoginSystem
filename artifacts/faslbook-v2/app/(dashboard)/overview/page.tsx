@@ -12,9 +12,10 @@ import { useRouter } from "next/navigation";
 import { useLangStore } from "@/store/langStore";
 import {
   TrendingUp, TrendingDown, Wallet,
-  Package, ArrowUpRight, ArrowDownRight,
-  Wheat, Clock, Users, LayoutGrid,
-  Bell, ChevronRight, Copy, Check,
+  Package, Plus, ArrowUpRight,
+  ArrowDownRight, Wheat, Clock,
+  Users, LayoutGrid, Bell, MapPin,
+  ChevronRight, Copy, Check,
 } from "lucide-react";
 import Link from "next/link";
 import LanguageSwitcher from "@/components/shared/LanguageSwitcher";
@@ -147,12 +148,54 @@ export default function OverviewPage() {
 
   // ── Quick actions ─────────────────────────────────────────────
   const actions = [
-    { key: "add_expense",      icon: ArrowDownRight, color: "#C62828", bg: "#FFEBEE", href: "/expenses" },
-    { key: "add_income",       icon: ArrowUpRight,   color: "#1B5E20", bg: "#E8F5E9", href: "/income"   },
-    { key: "stock_transfer",   icon: Package,        color: "#E65100", bg: "#FFF3E0", href: "/inventory" },
-    { key: "attendance",       icon: Clock,          color: "#1565C0", bg: "#E3F2FD", href: "/workers"  },
-    { key: "team",             icon: Users,          color: "#6A1B9A", bg: "#F3E5F5", href: "/workers"  },
-    { key: "reports",          icon: LayoutGrid,     color: "#00695C", bg: "#E0F2F1", href: "/reports"  },
+    {
+      label: "Add Expense",
+      urdu: "خرچ",
+      icon: ArrowDownRight,
+      color: "#C62828",
+      bg: "#FFEBEE",
+      href: "/expenses",
+    },
+    {
+      label: "Add Income",
+      urdu: "آمدن",
+      icon: ArrowUpRight,
+      color: "#1B5E20",
+      bg: "#E8F5E9",
+      href: "/income",
+    },
+    {
+      label: "My Land",
+      urdu: "زمین",
+      icon: MapPin,
+      color: "#1B5E20",
+      bg: "#E8F5E9",
+      href: "/parcels",
+    },
+    {
+      label: "Godown",
+      urdu: "گودام",
+      icon: Package,
+      color: "#E65100",
+      bg: "#FFF3E0",
+      href: "/inventory",
+    },
+    {
+      label: "Crops",
+      urdu: "فصل",
+      icon: Wheat,
+      color: "#16A34A",
+      bg: "#DCFCE7",
+      href: "/crops",
+    },
+    {
+      label: "Team",
+      urdu: "ٹیم",
+      icon: Users,
+      color: "#6A1B9A",
+      bg: "#F3E5F5",
+      href: "/workers",
+    },
   ];
 
   // ── Activity helpers ──────────────────────────────────────────
@@ -309,7 +352,7 @@ export default function OverviewPage() {
           {actions.map((action) => {
             const Icon = action.icon;
             return (
-              <Link key={action.key} href={action.href} className="flex flex-col items-center gap-2 shrink-0 pb-1">
+              <Link key={action.label} href={action.href} className="flex flex-col items-center gap-2 shrink-0 pb-1">
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center shadow-sm"
                   style={{ backgroundColor: action.bg }}
@@ -317,7 +360,10 @@ export default function OverviewPage() {
                   <Icon size={24} color={action.color} />
                 </div>
                 <p className="text-gray-600 text-xs font-medium text-center w-16 leading-tight">
-                  {t(action.key)}
+                  {action.label}
+                </p>
+                <p className="text-gray-400 text-xs text-center leading-tight">
+                  {action.urdu}
                 </p>
               </Link>
             );
