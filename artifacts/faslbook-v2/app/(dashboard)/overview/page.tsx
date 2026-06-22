@@ -18,7 +18,6 @@ import {
   ChevronRight, Copy, Check,
 } from "lucide-react";
 import Link from "next/link";
-import LanguageSwitcher from "@/components/shared/LanguageSwitcher";
 
 // ── Helpers ────────────────────────────────────────────────────
 const fmt = (n: number) => "Rs. " + n.toLocaleString("en-PK");
@@ -261,7 +260,6 @@ export default function OverviewPage() {
 
           {/* Right icons */}
           <div className="flex items-center gap-2">
-            <LanguageSwitcher compact />
             {pendingRequests > 0 && (
               <Link href="/approvals">
                 <div className="relative">

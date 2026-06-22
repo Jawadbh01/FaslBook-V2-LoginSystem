@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import {
   collection, query, where, onSnapshot,
   addDoc, updateDoc, doc, serverTimestamp,
-  orderBy,
 } from "firebase/firestore";
+import { auth } from "@/lib/firebase/config";
 import { db } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
 import { useLangStore } from "@/store/langStore";
@@ -64,9 +64,16 @@ export default function ParcelsPage() {
     const unsubs: (() => void)[] = [];
 
     unsubs.push(onSnapshot(
-      query(collection(db, "parcels"), where("organizationId", "==", orgId), orderBy("createdAt", "desc")),
+      query(collection(db, "parcels"), where("organizationId", "==", orgId)),
       (snap) => {
-        setParcels(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Parcel)));
+        const sorted = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as Parcel))
+          .sort((a, b) => {
+            const aTime = a.createdAt?.toMillis?.() ?? 0;
+            const bTime = b.createdAt?.toMillis?.() ?? 0;
+            return bTime - aTime;
+          });
+        setParcels(sorted);
         setLoading(false);
       }
     ));
@@ -88,6 +95,8 @@ export default function ParcelsPage() {
   const handleSave = async () => {
     if (!form.name || !form.acres || !form.location) { setFormError(t("fill_required")); return; }
     if (isNaN(Number(form.acres)) || Number(form.acres) <= 0) { setFormError(t("acres_invalid")); return; }
+    const currentOrgId = orgId || useAuthStore.getState().organization?.id;
+    if (!currentOrgId) { setFormError("Organization not found. Please refresh and try again."); return; }
     try {
       setSaving(true);
       setFormError("");
@@ -95,7 +104,7 @@ export default function ParcelsPage() {
       const data = {
         name: form.name.trim(), acres: Number(form.acres), location: form.location.trim(),
         assignedFarmer: form.assignedFarmer || "", assignedFarmerName: farmer?.name || "",
-        currentCropId: "", currentCropName: "", status: form.status, organizationId: orgId,
+        currentCropId: "", currentCropName: "", status: form.status, organizationId: currentOrgId,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(), syncStatus: "synced",
       };
       if (selected) {
@@ -103,16 +112,27 @@ export default function ParcelsPage() {
       } else {
         await addDoc(collection(db, "parcels"), data);
       }
+      await addDoc(collection(db, "activityLogs"), {
+        organizationId: currentOrgId,
+        userId: auth.currentUser?.uid || "",
+        userName: auth.currentUser?.displayName || "",
+        action: selected ? "PARCEL_UPDATED" : "PARCEL_CREATED",
+        description: selected ? `Updated parcel: ${form.name}` : `Created parcel: ${form.name}`,
+        recordId: "",
+        recordType: "parcels",
+        createdAt: serverTimestamp(),
+        syncStatus: "synced",
+      });
       setShowAdd(false); setSelected(null); resetForm();
     } catch { setFormError(t("save_failed")); }
     finally { setSaving(false); }
   };
 
-  const resetForm = () => setForm({ name: "", acres: "", location: "", assignedFarmer: "", status: "active" });
+  const resetForm = () => setForm({ name: "", acres: "", location: "", assignedFarmer: "", status: "owned" });
 
   const openEdit = (parcel: Parcel) => {
     setSelected(parcel);
-    setForm({ name: parcel.name, acres: String(parcel.acres), location: parcel.location, assignedFarmer: parcel.assignedFarmer, status: parcel.status || "active" });
+    setForm({ name: parcel.name, acres: String(parcel.acres), location: parcel.location, assignedFarmer: parcel.assignedFarmer, status: parcel.status || "owned" });
     setShowAdd(true);
   };
 
