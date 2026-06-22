@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronLeft } from "lucide-react";
-import LanguageSwitcher from "./LanguageSwitcher";
 import { useLangStore } from "@/store/langStore";
 
 const MAIN_NAV = ["/ledger", "/inventory", "/dealers", "/workers"];
@@ -62,7 +61,9 @@ export default function TopBar() {
           <ChevronLeft size={24} color="white" />
         </button>
         <span className="font-bold text-lg text-white flex-1">{title}</span>
-        <LanguageSwitcher compact />
+        <button aria-label="Notifications" className="p-2 rounded-full hover:bg-white/10 transition-colors">
+          <Bell size={22} color="white" />
+        </button>
       </div>
     </header>
   );

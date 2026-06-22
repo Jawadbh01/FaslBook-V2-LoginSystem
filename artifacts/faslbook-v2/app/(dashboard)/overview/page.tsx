@@ -348,23 +348,22 @@ export default function OverviewPage() {
             {t("view_all")} <ChevronRight size={12} color="#1B5E20" />
           </button>
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
           {actions.map((action) => {
             const Icon = action.icon;
             return (
-              <Link key={action.label} href={action.href} className="flex flex-col items-center gap-2 shrink-0 pb-1">
-                <div
-                  className="w-14 h-14 rounded-full flex items-center justify-center shadow-sm"
-                  style={{ backgroundColor: action.bg }}
-                >
-                  <Icon size={24} color={action.color} />
+              <Link key={action.label} href={action.href}>
+                <div className="flex flex-col items-center gap-2 min-w-[72px]">
+                  <div
+                    className="w-14 h-14 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                    style={{ backgroundColor: action.bg }}
+                  >
+                    <Icon size={24} color={action.color} />
+                  </div>
+                  <p className="text-gray-700 text-xs font-medium text-center whitespace-nowrap">
+                    {action.label}
+                  </p>
                 </div>
-                <p className="text-gray-600 text-xs font-medium text-center w-16 leading-tight">
-                  {action.label}
-                </p>
-                <p className="text-gray-400 text-xs text-center leading-tight">
-                  {action.urdu}
-                </p>
               </Link>
             );
           })}
@@ -416,30 +415,6 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* ── Farm ID (landlord only) ───────────────────────────── */}
-      {role === "landlord" && (
-        <div className="px-4 mt-4">
-          <div className="rounded-2xl p-4 flex items-center gap-3" style={{ backgroundColor: "#E8F5E9" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#1B5E20" }}>
-              <Wheat size={20} color="white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-green-700 text-xs font-medium">{t("farm_id_label")} — {t("share_with_team")}</p>
-              <p className="font-bold text-lg tracking-widest truncate" style={{ color: "#1B5E20" }}>
-                {organization?.farmId}
-              </p>
-            </div>
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl text-white shrink-0"
-              style={{ backgroundColor: "#1B5E20" }}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? t("copied") : t("copy")}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,0 +1,56 @@
+Fix these 4 specific issues in FaslBook. Do not change anything else.
+
+FIX 1 - Quick Actions redesign in app/(dashboard)/overview/page.tsx:
+- Each action item shows only ONE label line - the label in selected language only
+- Remove the second urdu line below each action
+- No text wrapping - if text is long truncate with ellipsis
+- Make each action item wider so text fits in one line
+- Update actions array to remove urdu field usage in the rendered UI
+- Only show: icon circle + single label text below
+
+Replace the Quick Actions render section with:
+<div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+  {actions.map((action) => {
+    const Icon = action.icon;
+    return (
+      <Link key={action.label} href={action.href}>
+        <div className="flex flex-col items-center gap-2 min-w-[72px]">
+          <div
+            className="w-14 h-14 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+            style={{ backgroundColor: action.bg }}
+          >
+            <Icon size={24} color={action.color} />
+          </div>
+          <p className="text-gray-700 text-xs font-medium text-center whitespace-nowrap">
+            {action.label}
+          </p>
+        </div>
+      </Link>
+    );
+  })}
+</div>
+
+FIX 2 - Remove Farm ID card from bottom of overview page:
+In app/(dashboard)/overview/page.tsx find the Farm ID card section at the bottom.
+It shows "Your Farm ID - Share with team" with FB-XXXXXX and Copy button.
+Delete this entire section. Farm ID is already in Profile settings.
+
+FIX 3 - Parcel status names in app/(dashboard)/parcels/page.tsx:
+Replace statusConfig with:
+const statusConfig = {
+  owned:    { label: "Owned",    color: "#1B5E20", bg: "#E8F5E9" },
+  leased:   { label: "Leased",   color: "#1565C0", bg: "#E3F2FD" },
+  rented:   { label: "Rented",   color: "#E65100", bg: "#FFF3E0" },
+  inactive: { label: "Inactive", color: "#757575", bg: "#F5F5F5" },
+}
+Change default status in form from "active" to "owned"
+Update the status grid buttons to show these 4 new statuses
+
+FIX 4 - Remove language switcher from TopBar/header:
+In components/shared/TopBar.tsx remove the EN UR SD language switcher pills completely.
+Language is already in Profile settings.
+Keep only: FaslBook title on left, notification bell on right.
+Clean minimal TopBar.
+
+Also remove language switcher from overview page header if it appears there.
+Keep language switcher ONLY in app/(dashboard)/profile/page.tsx settings section.

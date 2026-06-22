@@ -42,10 +42,10 @@ export default function ParcelsPage() {
   const canEdit = role === "landlord" || role === "manager";
 
   const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
-    active:   { label: t("active"),   color: "#1B5E20", bg: "#E8F5E9" },
-    fallow:   { label: t("fallow"),   color: "#E65100", bg: "#FFF3E0" },
-    leased:   { label: t("leased"),   color: "#1565C0", bg: "#E3F2FD" },
-    inactive: { label: t("inactive"), color: "#757575", bg: "#F5F5F5" },
+    owned:    { label: "Owned",    color: "#1B5E20", bg: "#E8F5E9" },
+    leased:   { label: "Leased",   color: "#1565C0", bg: "#E3F2FD" },
+    rented:   { label: "Rented",   color: "#E65100", bg: "#FFF3E0" },
+    inactive: { label: "Inactive", color: "#757575", bg: "#F5F5F5" },
   };
 
   const [parcels, setParcels]   = useState<Parcel[]>([]);
@@ -55,7 +55,7 @@ export default function ParcelsPage() {
   const [showAdd, setShowAdd]   = useState(false);
   const [selected, setSelected] = useState<Parcel | null>(null);
 
-  const [form, setForm] = useState({ name: "", acres: "", location: "", assignedFarmer: "", status: "active" });
+  const [form, setForm] = useState({ name: "", acres: "", location: "", assignedFarmer: "", status: "owned" });
   const [saving, setSaving]     = useState(false);
   const [formError, setFormError] = useState("");
 
