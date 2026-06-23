@@ -105,6 +105,7 @@ export default function LoansPage() {
         syncStatus: "synced",
       });
 
+      // Ledger entry
       await addDoc(collection(db, "ledgerEntries"), {
         organizationId: orgId,
         type: "loan",
@@ -117,6 +118,7 @@ export default function LoansPage() {
         syncStatus: "synced",
       });
 
+      // Activity log
       await addDoc(collection(db, "activityLogs"), {
         organizationId: orgId,
         userId: auth.currentUser?.uid || "",
@@ -135,7 +137,7 @@ export default function LoansPage() {
         amount: "", borrowDate: new Date().toISOString().split("T")[0],
         dueDate: "", notes: "",
       });
-    } catch {
+    } catch (err) {
       setError("Failed to save loan.");
     } finally {
       setSaving(false);
@@ -209,6 +211,7 @@ export default function LoansPage() {
             <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-5">{error}</div>
           )}
 
+          {/* Lender Type */}
           <div className="mb-5">
             <label className="text-gray-600 text-sm font-medium mb-3 block">Lender Type</label>
             <div className="grid grid-cols-3 gap-2">
@@ -231,6 +234,7 @@ export default function LoansPage() {
             </div>
           </div>
 
+          {/* Lender Name */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">Lender Name *</label>
             <div className="flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3 focus-within:border-green-700">
@@ -245,6 +249,7 @@ export default function LoansPage() {
             </div>
           </div>
 
+          {/* Amount */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">Amount (Rs.) *</label>
             <div className="flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3 focus-within:border-green-700">
@@ -259,6 +264,7 @@ export default function LoansPage() {
             </div>
           </div>
 
+          {/* Borrow Date */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">Borrow Date</label>
             <div className="flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3 focus-within:border-green-700">
@@ -272,6 +278,7 @@ export default function LoansPage() {
             </div>
           </div>
 
+          {/* Due Date */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">Due Date (Optional)</label>
             <div className="flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3 focus-within:border-green-700">
@@ -285,6 +292,7 @@ export default function LoansPage() {
             </div>
           </div>
 
+          {/* Notes */}
           <div className="mb-8">
             <label className="text-gray-600 text-sm font-medium mb-2 block">Notes</label>
             <div className="border-2 border-gray-200 rounded-2xl px-4 py-3">
@@ -393,6 +401,7 @@ export default function LoansPage() {
       </div>
 
       <div className="px-4 pt-4">
+        {/* Summary */}
         <div className="bg-white rounded-2xl p-4 shadow-sm mb-4">
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-xl p-3 text-center" style={{ backgroundColor: "#FFEBEE" }}>
@@ -455,7 +464,9 @@ export default function LoansPage() {
                     </div>
                     <div
                       className="px-3 py-1 rounded-full"
-                      style={{ backgroundColor: isFullyPaid ? "#E8F5E9" : "#FFEBEE" }}
+                      style={{
+                        backgroundColor: isFullyPaid ? "#E8F5E9" : "#FFEBEE",
+                      }}
                     >
                       <span className="text-xs font-bold" style={{ color: isFullyPaid ? "#1B5E20" : "#C62828" }}>
                         {isFullyPaid ? "✅ Paid" : fmt(remaining)}
@@ -474,6 +485,7 @@ export default function LoansPage() {
                     </div>
                   </div>
 
+                  {/* Progress */}
                   <div className="mb-3">
                     <div className="flex justify-between text-xs text-gray-400 mb-1">
                       <span>Repayment Progress</span>

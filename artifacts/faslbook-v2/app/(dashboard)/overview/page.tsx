@@ -15,7 +15,7 @@ import {
   Package, Plus, ArrowUpRight,
   ArrowDownRight, Wheat, Clock,
   Users, LayoutGrid, Bell, MapPin,
-  ChevronRight, Copy, Check,
+  ChevronRight, Copy, Check, HandCoins,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -199,6 +199,14 @@ export default function OverviewPage() {
       color: "#6A1B9A",
       bg: "#F3E5F5",
       href: "/workers",
+    },
+    {
+      label: "Loans",
+      urdu: "قرضہ",
+      icon: HandCoins,
+      color: "#E65100",
+      bg: "#FFF3E0",
+      href: "/loans",
     },
   ];
 

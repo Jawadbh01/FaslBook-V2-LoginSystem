@@ -9,7 +9,7 @@ import { db, auth } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
 import {
   Plus, X, Loader2, Phone, MapPin,
-  Handshake, CreditCard,
+  ChevronRight, Handshake, CreditCard,
   ArrowDownLeft, ArrowUpRight, Check,
 } from "lucide-react";
 
@@ -25,6 +25,19 @@ interface Dealer {
   createdAt: any;
 }
 
+interface Transaction {
+  id: string;
+  dealerId: string;
+  dealerName: string;
+  type: "purchase" | "payment";
+  items: string;
+  amount: number;
+  paymentType: "cash" | "credit";
+  date: any;
+  notes: string;
+  organizationId: string;
+}
+
 export default function DealersPage() {
   const { organization, role } = useAuthStore();
   const orgId = organization?.id;
@@ -38,10 +51,12 @@ export default function DealersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Dealer form
   const [dForm, setDForm] = useState({
     name: "", phone: "", address: "", notes: "",
   });
 
+  // Transaction form
   const [txForm, setTxForm] = useState({
     type: "purchase" as "purchase" | "payment",
     items: "",
@@ -112,6 +127,7 @@ export default function DealersPage() {
       setError("");
       const amount = Number(txForm.amount);
 
+      // Save transaction
       await addDoc(collection(db, "dealerTransactions"), {
         dealerId: selectedDealer.id,
         dealerName: selectedDealer.name,
@@ -126,6 +142,7 @@ export default function DealersPage() {
         syncStatus: "synced",
       });
 
+      // Update dealer totals
       const update: any = { updatedAt: serverTimestamp() };
       if (txForm.type === "purchase") {
         update.totalPurchased = (selectedDealer.totalPurchased || 0) + amount;
@@ -134,6 +151,7 @@ export default function DealersPage() {
       }
       await updateDoc(doc(db, "dealers", selectedDealer.id), update);
 
+      // Ledger entry
       await addDoc(collection(db, "ledgerEntries"), {
         organizationId: orgId,
         type: txForm.type === "purchase" ? "dealerCredit" : "dealerPayment",
@@ -148,6 +166,23 @@ export default function DealersPage() {
         syncStatus: "synced",
       });
 
+      // If credit purchase create expense
+      if (txForm.type === "purchase" && txForm.paymentType === "credit") {
+        await addDoc(collection(db, "expenses"), {
+          organizationId: orgId,
+          category: "Dealer Purchase",
+          amount,
+          date: new Date(txForm.date),
+          vendor: selectedDealer.name,
+          notes: txForm.items,
+          paymentType: "credit",
+          createdBy: auth.currentUser?.uid || "",
+          createdAt: serverTimestamp(),
+          syncStatus: "synced",
+        });
+      }
+
+      // Activity log
       await addDoc(collection(db, "activityLogs"), {
         organizationId: orgId,
         userId: auth.currentUser?.uid || "",
@@ -264,6 +299,7 @@ export default function DealersPage() {
             <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-5">{error}</div>
           )}
 
+          {/* Outstanding balance */}
           {outstanding > 0 && (
             <div className="rounded-2xl p-4 mb-5" style={{ backgroundColor: "#FFF3E0" }}>
               <p className="text-orange-800 text-xs font-medium">Outstanding Balance</p>
@@ -271,6 +307,7 @@ export default function DealersPage() {
             </div>
           )}
 
+          {/* Type selector */}
           <div className="mb-5">
             <label className="text-gray-600 text-sm font-medium mb-3 block">Transaction Type</label>
             <div className="flex gap-3">
@@ -296,6 +333,7 @@ export default function DealersPage() {
             </div>
           </div>
 
+          {/* Items (for purchase) */}
           {txForm.type === "purchase" && (
             <div className="mb-4">
               <label className="text-gray-600 text-sm font-medium mb-2 block">Items Purchased *</label>
@@ -311,6 +349,7 @@ export default function DealersPage() {
             </div>
           )}
 
+          {/* Amount */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">Amount (Rs.) *</label>
             <div className="flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3 focus-within:border-green-700">
@@ -325,6 +364,7 @@ export default function DealersPage() {
             </div>
           </div>
 
+          {/* Payment type (for purchase) */}
           {txForm.type === "purchase" && (
             <div className="mb-4">
               <label className="text-gray-600 text-sm font-medium mb-3 block">Payment Type</label>
@@ -354,6 +394,7 @@ export default function DealersPage() {
             </div>
           )}
 
+          {/* Date */}
           <div className="mb-4">
             <label className="text-gray-600 text-sm font-medium mb-2 block">Date</label>
             <div className="flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3 focus-within:border-green-700">
@@ -366,6 +407,7 @@ export default function DealersPage() {
             </div>
           </div>
 
+          {/* Notes */}
           <div className="mb-8">
             <label className="text-gray-600 text-sm font-medium mb-2 block">Notes</label>
             <div className="border-2 border-gray-200 rounded-2xl px-4 py-3">
@@ -419,6 +461,7 @@ export default function DealersPage() {
       </div>
 
       <div className="px-4 pt-4">
+        {/* Outstanding summary */}
         {totalOutstanding > 0 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm mb-4 flex items-center justify-between">
             <div>
@@ -483,6 +526,7 @@ export default function DealersPage() {
                     )}
                   </div>
 
+                  {/* Stats */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="rounded-xl p-2" style={{ backgroundColor: "#F5F5F5" }}>
                       <p className="text-gray-400 text-xs mb-0.5">Total Purchased</p>
@@ -494,6 +538,7 @@ export default function DealersPage() {
                     </div>
                   </div>
 
+                  {/* Progress bar */}
                   {(dealer.totalPurchased || 0) > 0 && (
                     <div className="mb-3">
                       <div className="flex justify-between text-xs text-gray-400 mb-1">
@@ -512,6 +557,7 @@ export default function DealersPage() {
                     </div>
                   )}
 
+                  {/* Action buttons */}
                   {canEdit && (
                     <div className="flex gap-2">
                       <button
