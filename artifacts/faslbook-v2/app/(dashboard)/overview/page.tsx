@@ -134,8 +134,11 @@ export default function OverviewPage() {
     unsubs.push(onSnapshot(
       query(collection(db, "activityLogs"), where("organizationId", "==", orgId), limit(8)),
       (snap) => {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
         const sorted = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((a: any) => (a.createdAt?.toMillis?.() ?? 0) >= todayStart.getTime())
           .sort((a: any, b: any) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
         setRecentActivity(sorted);
       }
