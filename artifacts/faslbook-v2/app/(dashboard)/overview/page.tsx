@@ -93,22 +93,12 @@ export default function OverviewPage() {
     const unsubs: (() => void)[] = [];
 
     unsubs.push(onSnapshot(
-      query(collection(db, "ledgerEntries"), where("organizationId", "==", orgId), where("direction", "==", "credit")),
-      (snap) => setIncome(snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0))
-    ));
-
-    unsubs.push(onSnapshot(
-      query(collection(db, "ledgerEntries"), where("organizationId", "==", orgId), where("direction", "==", "debit")),
-      (snap) => setExpense(snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0))
-    ));
-
-    unsubs.push(onSnapshot(
       query(collection(db, "ledgerEntries"), where("organizationId", "==", orgId)),
       (snap) => {
-        const sorted = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() } as any))
-          .sort((a: any, b: any) => (b.date > a.date ? 1 : -1))
-          .slice(0, 5);
+        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        setIncome(all.filter((e: any) => e.type === "credit").reduce((s: number, e: any) => s + (e.amount || 0), 0));
+        setExpense(all.filter((e: any) => e.type === "debit").reduce((s: number, e: any) => s + (e.amount || 0), 0));
+        const sorted = [...all].sort((a: any, b: any) => (b.date > a.date ? 1 : -1)).slice(0, 5);
         setRecentLedger(sorted);
       }
     ));
@@ -407,7 +397,7 @@ export default function OverviewPage() {
           </div>
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             {recentLedger.map((entry, i) => {
-              const isCredit = entry.direction === "credit";
+              const isCredit = entry.type === "credit";
               const label = entry.description ||
                 (entry.sourceType
                   ? entry.sourceType.charAt(0).toUpperCase() + entry.sourceType.slice(1)
