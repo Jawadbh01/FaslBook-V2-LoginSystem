@@ -3,28 +3,32 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase/config";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { auth, db, storage } from "@/lib/firebase/config";
 import { useAuthStore } from "@/store/authStore";
 import { useLangStore } from "@/store/langStore";
 import {
   ChevronLeft, User, Mail, Phone,
   LogOut, Camera, Sun, Moon, Bell,
-  Copy, Check, Wheat,
+  Copy, Check, Wheat, Loader2,
 } from "lucide-react";
 import type { Lang } from "@/lib/i18n/translations";
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, organization, role } = useAuthStore();
-  const { lang, setLang, t } = useLangStore();
+  const { lang, setLang } = useLangStore();
 
-  const [userName, setUserName]       = useState("");
-  const [userPhone, setUserPhone]     = useState("");
-  const [darkMode, setDarkMode]       = useState(false);
-  const [notifs, setNotifs]           = useState(true);
-  const [copied, setCopied]           = useState(false);
-  const [loggingOut, setLoggingOut]   = useState(false);
+  const [userName, setUserName]         = useState("");
+  const [userPhone, setUserPhone]       = useState("");
+  const [photoUrl, setPhotoUrl]         = useState("");
+  const [darkMode, setDarkMode]         = useState(false);
+  const [notifs, setNotifs]             = useState(true);
+  const [copied, setCopied]             = useState(false);
+  const [loggingOut, setLoggingOut]     = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [error, setError]               = useState("");
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -33,15 +37,38 @@ export default function ProfilePage() {
         const d = snap.data();
         setUserName(d.name || user.displayName || "");
         setUserPhone(d.phone || user.phoneNumber || "");
+        setPhotoUrl(d.photoUrl || user.photoURL || "");
       } else {
         setUserName(user.displayName || "");
         setUserPhone(user.phoneNumber || "");
+        setPhotoUrl(user.photoURL || "");
       }
     });
   }, [user?.uid]);
 
   const initials = (userName || user?.displayName || "U")
     .split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "U";
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingPhoto(true);
+      setError("");
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const storageRef = ref(storage, `profiles/${currentUser.uid}/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      await updateDoc(doc(db, "users", currentUser.uid), { photoUrl: url });
+      setPhotoUrl(url);
+    } catch (err) {
+      console.error("Photo upload error:", err);
+      setError("Failed to upload photo. Please check Firebase Storage rules.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -68,6 +95,15 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
 
+      {/* Hidden file input */}
+      <input
+        type="file"
+        accept="image/*"
+        id="photoInput"
+        className="hidden"
+        onChange={handlePhotoChange}
+      />
+
       {/* ── Green Header ─────────────────────────────────────── */}
       <div className="px-4 pt-10 pb-16" style={{ backgroundColor: "#1B5E20" }}>
         <div className="flex items-center gap-3 mb-2">
@@ -84,10 +120,16 @@ export default function ProfilePage() {
       {/* ── Avatar card (overlaps header) ────────────────────── */}
       <div className="px-5 -mt-12">
         <div className="bg-white rounded-2xl shadow-md px-5 pt-5 pb-5 flex flex-col items-center">
-          <div className="relative mb-3">
-            {user?.photoURL ? (
+          {error && (
+            <div className="w-full bg-red-50 border border-red-200 text-red-600 text-xs px-3 py-2 rounded-xl mb-3 text-center">{error}</div>
+          )}
+          <div
+            className="relative mb-3 cursor-pointer"
+            onClick={() => !uploadingPhoto && document.getElementById("photoInput")?.click()}
+          >
+            {photoUrl ? (
               <img
-                src={user.photoURL}
+                src={photoUrl}
                 alt="profile"
                 className="w-24 h-24 rounded-full border-4 border-white shadow-md object-cover"
               />
@@ -99,12 +141,18 @@ export default function ProfilePage() {
                 <span className="text-white font-bold text-3xl">{initials}</span>
               </div>
             )}
-            <button
+            {/* Uploading overlay */}
+            {uploadingPhoto && (
+              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                <Loader2 size={28} color="white" className="animate-spin" />
+              </div>
+            )}
+            <div
               className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center shadow border-2 border-white"
               style={{ backgroundColor: "#1B5E20" }}
             >
               <Camera size={14} color="white" />
-            </button>
+            </div>
           </div>
           <p className="text-gray-800 font-bold text-xl">{userName || user?.displayName || "User"}</p>
           <p className="text-gray-400 text-sm">

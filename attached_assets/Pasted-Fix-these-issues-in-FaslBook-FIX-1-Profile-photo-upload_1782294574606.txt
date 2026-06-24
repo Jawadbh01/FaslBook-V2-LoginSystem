@@ -1,0 +1,241 @@
+Fix these issues in FaslBook:
+
+FIX 1 - Profile photo upload not working in app/(dashboard)/profile/page.tsx:
+
+Add working photo upload using Firebase Storage:
+
+At top of profile page add:
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "@/lib/firebase/config";
+import { updateDoc, doc } from "firebase/firestore";
+
+Add hidden file input:
+<input
+  type="file"
+  accept="image/*"
+  id="photoInput"
+  className="hidden"
+  onChange={handlePhotoChange}
+/>
+
+Make avatar circle clickable:
+<div
+  onClick={() => document.getElementById("photoInput")?.click()}
+  className="relative cursor-pointer"
+>
+  {photoUrl ? (
+    <img src={photoUrl} className="w-24 h-24 rounded-full object-cover" />
+  ) : (
+    <div className="w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold text-white" style={{ backgroundColor: "#1B5E20" }}>
+      {userName?.charAt(0)?.toUpperCase()}
+    </div>
+  )}
+  <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center border-2 border-gray-100">
+    <Camera size={16} color="#1B5E20" />
+  </div>
+</div>
+
+Add handlePhotoChange function:
+const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    setUploadingPhoto(true);
+    const user = auth.currentUser;
+    if (!user) return;
+    const storageRef = ref(storage, `profiles/${user.uid}/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    await updateDoc(doc(db, "users", user.uid), {
+      photoUrl: url,
+      updatedAt: serverTimestamp(),
+    });
+    setPhotoUrl(url);
+  } catch (err) {
+    console.error("Photo upload error:", err);
+    setError("Failed to upload photo. Please try again.");
+  } finally {
+    setUploadingPhoto(false);
+  }
+};
+
+Add uploadingPhoto state. Show loading spinner over avatar while uploading.
+
+FIX 2 - Profile photo on register page app/(auth)/register/page.tsx:
+
+Add photo upload step to registration form.
+After name and before email add:
+
+Photo Upload section:
+- Large circular area in center showing camera icon
+- Tap to select photo from gallery
+- Shows preview of selected photo
+- Photo is optional - show "Add Photo (Optional)" label
+- Store file in state, upload to Firebase Storage after createUserWithEmailAndPassword succeeds
+- Upload to profiles/{uid}/profile.jpg
+- Save URL to user document photoUrl field
+
+Add this at top of form:
+const [photoFile, setPhotoFile] = useState<File | null>(null);
+const [photoPreview, setPhotoPreview] = useState<string>("");
+
+Photo picker UI:
+<div className="flex flex-col items-center mb-6">
+  <input type="file" accept="image/*" id="regPhoto" className="hidden" onChange={(e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  }} />
+  <div
+    onClick={() => document.getElementById("regPhoto")?.click()}
+    className="w-24 h-24 rounded-full border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform overflow-hidden"
+    style={{ backgroundColor: "#F9F9F9" }}
+  >
+    {photoPreview ? (
+      <img src={photoPreview} className="w-full h-full object-cover" />
+    ) : (
+      <>
+        <Camera size={28} color="#9E9E9E" />
+        <p className="text-gray-400 text-xs mt-1">Add Photo</p>
+      </>
+    )}
+  </div>
+  <p className="text-gray-400 text-xs mt-2">Optional</p>
+</div>
+
+After createUserWithEmailAndPassword upload photo if selected:
+if (photoFile) {
+  const storageRef = ref(storage, `profiles/${result.user.uid}/profile.jpg`);
+  await uploadBytes(storageRef, photoFile);
+  const photoUrl = await getDownloadURL(storageRef);
+  photoUrlToSave = photoUrl;
+}
+
+FIX 3 - Receipt photo upload on expense form:
+
+In app/(dashboard)/expenses/page.tsx or wherever expense form is:
+Find the "Upload Receipt" section.
+Make it actually work:
+
+Add state:
+const [receiptFile, setReceiptFile] = useState<File | null>(null);
+const [receiptPreview, setReceiptPreview] = useState<string>("");
+const [uploadingReceipt, setUploadingReceipt] = useState(false);
+
+Upload receipt UI:
+<div className="mb-4">
+  <label className="text-gray-600 text-sm font-medium mb-2 block">Receipt Photo</label>
+  <input type="file" accept="image/*" id="receiptInput" className="hidden" onChange={(e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setReceiptFile(file);
+      setReceiptPreview(URL.createObjectURL(file));
+    }
+  }} />
+  <div
+    onClick={() => document.getElementById("receiptInput")?.click()}
+    className="w-full h-32 border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform overflow-hidden"
+    style={{ backgroundColor: "#FAFAFA" }}
+  >
+    {receiptPreview ? (
+      <img src={receiptPreview} className="w-full h-full object-cover rounded-2xl" />
+    ) : (
+      <>
+        <Camera size={28} color="#9E9E9E" />
+        <p className="text-gray-500 text-sm mt-2">Tap to upload receipt</p>
+        <p className="text-gray-400 text-xs">JPG, PNG supported</p>
+      </>
+    )}
+  </div>
+</div>
+
+On save expense upload receipt:
+let receiptUrl = "";
+if (receiptFile) {
+  setUploadingReceipt(true);
+  const storageRef = ref(storage, `receipts/${orgId}/${Date.now()}_receipt.jpg`);
+  await uploadBytes(storageRef, receiptFile);
+  receiptUrl = await getDownloadURL(storageRef);
+}
+Then save receiptUrl to expense document.
+
+FIX 4 - Auto location detection:
+
+In expense form and income form add location field:
+- Show "Detect Location" button with MapPin icon
+- On tap: use browser geolocation API
+- Show loading spinner while detecting
+- On success: fill location field with coordinates or reverse geocoded address
+- Store location as { lat, lng, address } in expense/income document
+
+Add to any form that has location:
+const [location, setLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
+const [detectingLocation, setDetectingLocation] = useState(false);
+
+const detectLocation = () => {
+  if (!navigator.geolocation) {
+    alert("Location not supported on this device");
+    return;
+  }
+  setDetectingLocation(true);
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const { latitude, longitude } = position.coords;
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+        );
+        const data = await res.json();
+        const address = data.display_name || `${latitude}, ${longitude}`;
+        setLocation({ lat: latitude, lng: longitude, address });
+      } catch {
+        setLocation({ lat: latitude, lng: longitude, address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` });
+      }
+      setDetectingLocation(false);
+    },
+    (error) => {
+      alert("Could not detect location. Please enable location permission.");
+      setDetectingLocation(false);
+    },
+    { timeout: 10000, enableHighAccuracy: true }
+  );
+};
+
+Location UI in forms:
+<div className="mb-4">
+  <label className="text-gray-600 text-sm font-medium mb-2 block">Location (Optional)</label>
+  <div className="flex gap-2">
+    <div className="flex-1 flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3">
+      <MapPin size={20} color="#9E9E9E" className="mr-3 shrink-0" />
+      <input
+        type="text"
+        placeholder="Location"
+        value={location?.address || ""}
+        onChange={(e) => setLocation(location ? { ...location, address: e.target.value } : null)}
+        className="flex-1 outline-none text-gray-800 text-sm bg-transparent"
+      />
+    </div>
+    <button
+      onClick={detectLocation}
+      disabled={detectingLocation}
+      className="px-4 rounded-2xl flex items-center justify-center active:scale-95 transition-transform disabled:opacity-60"
+      style={{ backgroundColor: "#E8F5E9" }}
+    >
+      {detectingLocation
+        ? <Loader2 size={20} color="#1B5E20" className="animate-spin" />
+        : <MapPin size={20} color="#1B5E20" />
+      }
+    </button>
+  </div>
+  {location && (
+    <p className="text-green-700 text-xs mt-1 ml-2">
+      ✅ Location detected
+    </p>
+  )}
+</div>
+
+Add location field to expense and income Firestore documents when saving.
+
+Make sure Firebase Storage rules allow authenticated users to upload to profiles/ and receipts/ paths. Add this note in console if storage upload fails: check Firebase Storage rules.
