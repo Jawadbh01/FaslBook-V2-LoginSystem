@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   collection, query, where,
-  onSnapshot, orderBy, limit,
+  onSnapshot, limit,
   doc, getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
@@ -93,16 +93,23 @@ export default function OverviewPage() {
     const unsubs: (() => void)[] = [];
 
     unsubs.push(onSnapshot(
+      query(collection(db, "ledgerEntries"), where("organizationId", "==", orgId), where("direction", "==", "credit")),
+      (snap) => setIncome(snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0))
+    ));
+
+    unsubs.push(onSnapshot(
+      query(collection(db, "ledgerEntries"), where("organizationId", "==", orgId), where("direction", "==", "debit")),
+      (snap) => setExpense(snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0))
+    ));
+
+    unsubs.push(onSnapshot(
       query(collection(db, "ledgerEntries"), where("organizationId", "==", orgId)),
       (snap) => {
-        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
-        setIncome(all.filter((e: any) => e.type === "credit").reduce((s: number, e: any) => s + (e.amount || 0), 0));
-        setExpense(all.filter((e: any) => e.type === "debit").reduce((s: number, e: any) => s + (e.amount || 0), 0));
-        setRecentLedger(
-          all
-            .sort((a: any, b: any) => (b.date > a.date ? 1 : -1))
-            .slice(0, 5)
-        );
+        const sorted = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as any))
+          .sort((a: any, b: any) => (b.date > a.date ? 1 : -1))
+          .slice(0, 5);
+        setRecentLedger(sorted);
       }
     ));
 
@@ -125,8 +132,13 @@ export default function OverviewPage() {
     ));
 
     unsubs.push(onSnapshot(
-      query(collection(db, "activityLogs"), where("organizationId", "==", orgId), orderBy("createdAt", "desc"), limit(8)),
-      (snap) => setRecentActivity(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      query(collection(db, "activityLogs"), where("organizationId", "==", orgId), limit(8)),
+      (snap) => {
+        const sorted = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a: any, b: any) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+        setRecentActivity(sorted);
+      }
     ));
 
     if (role === "landlord") {
@@ -392,19 +404,29 @@ export default function OverviewPage() {
           </div>
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             {recentLedger.map((entry, i) => {
-              const isCredit = entry.type === "credit";
+              const isCredit = entry.direction === "credit";
+              const label = entry.description ||
+                (entry.sourceType
+                  ? entry.sourceType.charAt(0).toUpperCase() + entry.sourceType.slice(1)
+                  : entry.categoryLabel || entry.category || "Transaction");
+              const fmtEntryDate = (dateStr: string) => {
+                if (!dateStr) return "";
+                const [, m, d] = dateStr.split("-");
+                const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                return `${parseInt(d)} ${MONTHS_SHORT[parseInt(m) - 1]}`;
+              };
               return (
                 <div key={entry.id} className="flex items-center gap-3 px-4 py-3"
                   style={{ borderBottom: i < recentLedger.length - 1 ? "1px solid #F5F5F5" : "none" }}>
                   <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
                     style={{ backgroundColor: isCredit ? "#E8F5E9" : "#FFEBEE" }}>
                     {isCredit
-                      ? <TrendingUp size={16} color="#1B5E20" />
-                      : <TrendingDown size={16} color="#C62828" />}
+                      ? <ArrowUpRight size={16} color="#1B5E20" />
+                      : <ArrowDownRight size={16} color="#C62828" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-gray-800 text-sm font-medium truncate">{entry.categoryLabel || entry.category}</p>
-                    <p className="text-gray-400 text-xs">{entry.date}</p>
+                    <p className="text-gray-800 text-sm font-medium truncate">{label}</p>
+                    <p className="text-gray-400 text-xs">{fmtEntryDate(entry.date)}</p>
                   </div>
                   <p className="font-bold text-sm shrink-0" style={{ color: isCredit ? "#1B5E20" : "#C62828" }}>
                     {isCredit ? "+" : "−"}{fmt(entry.amount)}
