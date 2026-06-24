@@ -1,6 +1,6 @@
 export async function compressImage(
   file: File,
-  { maxWidth = 800, quality = 0.6 }: { maxWidth?: number; quality?: number } = {}
+  { maxWidth = 600, quality = 0.4 }: { maxWidth?: number; quality?: number } = {}
 ): Promise<File> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -20,7 +20,7 @@ export async function compressImage(
       canvas.toBlob(
         (blob) => {
           if (!blob) { reject(new Error("Compression failed")); return; }
-          resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }));
+          resolve(new File([blob], "photo.jpg", { type: "image/jpeg" }));
         },
         "image/jpeg",
         quality
