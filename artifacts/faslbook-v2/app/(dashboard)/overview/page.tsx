@@ -163,7 +163,7 @@ export default function OverviewPage() {
       icon: ArrowDownRight,
       color: "#C62828",
       bg: "#FFEBEE",
-      href: "/expenses",
+      href: "/ledger?form=expense",
     },
     {
       label: "Add Income",
@@ -171,7 +171,7 @@ export default function OverviewPage() {
       icon: ArrowUpRight,
       color: "#1B5E20",
       bg: "#E8F5E9",
-      href: "/income",
+      href: "/ledger?form=income",
     },
     {
       label: "My Land",

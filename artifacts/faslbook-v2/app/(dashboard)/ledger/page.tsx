@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   collection, query, where, onSnapshot,
   addDoc, serverTimestamp,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, auth, storage } from "@/lib/firebase/config";
+import { compressImage } from "@/lib/utils/compressImage";
 import { useAuthStore } from "@/store/authStore";
 import {
   ArrowLeft, Plus, TrendingUp, TrendingDown,
   ChevronLeft, ChevronRight, Loader2, CheckCircle,
-  Upload, MapPin, Camera,
+  MapPin, Camera, X, Receipt,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -27,11 +29,13 @@ interface LedgerEntry {
   dealerId?: string;
   dealerName?: string;
   notes: string;
+  receiptUrl?: string;
+  proofUrl?: string;
   organizationId: string;
   createdAt: any;
 }
-interface Parcel { id: string; name: string; }
-interface Dealer { id: string; name: string; }
+interface Parcel   { id: string; name: string; }
+interface Dealer   { id: string; name: string; }
 interface Location { lat: number; lng: number; address: string; }
 
 // ── Config ─────────────────────────────────────────────────────
@@ -64,10 +68,10 @@ function fmtDate(str: string) {
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
-// ── Location helpers ───────────────────────────────────────────
+// ── Location hook ──────────────────────────────────────────────
 function useLocationDetector() {
-  const [location, setLocation]     = useState<Location | null>(null);
-  const [detecting, setDetecting]   = useState(false);
+  const [location, setLocation]   = useState<Location | null>(null);
+  const [detecting, setDetecting] = useState(false);
 
   const detect = () => {
     if (!navigator.geolocation) { alert("Location not supported on this device"); return; }
@@ -93,8 +97,29 @@ function useLocationDetector() {
   return { location, setLocation, detecting, detect, reset };
 }
 
+// ── Receipt viewer modal ───────────────────────────────────────
+function ReceiptModal({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4"
+      onClick={onClose}
+    >
+      <div className="relative max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute -top-10 right-0 w-9 h-9 rounded-full bg-white/20 flex items-center justify-center"
+        >
+          <X size={20} color="white" />
+        </button>
+        <img src={url} alt="Receipt" className="w-full rounded-2xl object-contain max-h-[70vh]" />
+      </div>
+    </div>
+  );
+}
+
 export default function LedgerPage() {
   const { organization, role } = useAuthStore();
+  const searchParams = useSearchParams();
   const orgId   = organization?.id;
   const canEdit = role === "landlord" || role === "manager";
 
@@ -106,14 +131,22 @@ export default function LedgerPage() {
 
   // ── UI ─────────────────────────────────────────────────────
   const now = new Date();
-  const [viewMonth, setViewMonth] = useState({ year: now.getFullYear(), month: now.getMonth() });
-  const [view, setView]           = useState<View>("list");
-  const [saving, setSaving]       = useState(false);
-  const [success, setSuccess]     = useState(false);
-  const [successMsg, setSuccessMsg] = useState({ title: "", sub: "" });
-  const [formError, setFormError] = useState("");
+  const [viewMonth, setViewMonth]     = useState({ year: now.getFullYear(), month: now.getMonth() });
+  const [view, setView]               = useState<View>("list");
+  const [saving, setSaving]           = useState(false);
+  const [success, setSuccess]         = useState(false);
+  const [successMsg, setSuccessMsg]   = useState({ title: "", sub: "" });
+  const [formError, setFormError]     = useState("");
+  const [receiptViewUrl, setReceiptViewUrl] = useState<string | null>(null);
 
-  // ── Income form state ──────────────────────────────────────
+  // ── Auto-open form from query param ───────────────────────
+  useEffect(() => {
+    const form = searchParams.get("form");
+    if (form === "income")  setView("addIncome");
+    if (form === "expense") setView("addExpense");
+  }, [searchParams]);
+
+  // ── Income form ────────────────────────────────────────────
   const [incomeForm, setIncomeForm] = useState({
     type: "cropSale", amount: "", date: todayStr(), parcelId: "", notes: "",
   });
@@ -121,7 +154,7 @@ export default function LedgerPage() {
   const [incomeProofPreview, setIncomeProofPreview] = useState("");
   const incomeLocation = useLocationDetector();
 
-  // ── Expense form state ─────────────────────────────────────
+  // ── Expense form ───────────────────────────────────────────
   const [expenseForm, setExpenseForm] = useState({
     category: "fertilizer", amount: "", date: todayStr(), parcelId: "", dealerId: "", notes: "",
   });
@@ -171,6 +204,14 @@ export default function LedgerPage() {
   };
   const goBack = () => { setView("list"); resetForms(); };
 
+  // ── Upload helper (compress → storage) ────────────────────
+  async function uploadPhoto(file: File, path: string): Promise<string> {
+    const compressed = await compressImage(file, { maxWidth: 1024, quality: 0.55 });
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, compressed);
+    return getDownloadURL(storageRef);
+  }
+
   // ── Add Income ─────────────────────────────────────────────
   const handleAddIncome = async () => {
     if (!incomeForm.amount || Number(incomeForm.amount) <= 0) { setFormError("Enter a valid amount"); return; }
@@ -179,28 +220,20 @@ export default function LedgerPage() {
     try {
       setSaving(true); setFormError("");
       let proofUrl = "";
-      if (incomeProofFile) {
-        const storageRef = ref(storage, `proofs/${orgId}/${Date.now()}_proof.jpg`);
-        await uploadBytes(storageRef, incomeProofFile);
-        proofUrl = await getDownloadURL(storageRef);
-      }
-      const ref2 = await addDoc(collection(db, "ledgerEntries"), {
-        organizationId: orgId,
-        type: "credit",
+      if (incomeProofFile) proofUrl = await uploadPhoto(incomeProofFile, `proofs/${orgId}/${Date.now()}_proof.jpg`);
+
+      const docRef = await addDoc(collection(db, "ledgerEntries"), {
+        organizationId: orgId, type: "credit",
         category: incomeForm.type,
         categoryLabel: incomeTypes[incomeForm.type]?.label || incomeForm.type,
-        amount: Number(incomeForm.amount),
-        date: incomeForm.date,
-        parcelId: incomeForm.parcelId || "",
-        parcelName: parcel?.name || "",
-        notes: incomeForm.notes,
-        proofUrl,
+        amount: Number(incomeForm.amount), date: incomeForm.date,
+        parcelId: incomeForm.parcelId || "", parcelName: parcel?.name || "",
+        notes: incomeForm.notes, proofUrl,
         location: incomeLocation.location || null,
         createdBy: auth.currentUser?.uid || "",
-        createdAt: serverTimestamp(),
-        syncStatus: "synced",
+        createdAt: serverTimestamp(), syncStatus: "synced",
       });
-      setEntries((prev) => [{ id: ref2.id, type: "credit", category: incomeForm.type, categoryLabel: incomeTypes[incomeForm.type]?.label, amount: Number(incomeForm.amount), date: incomeForm.date, parcelId: incomeForm.parcelId || "", parcelName: parcel?.name || "", notes: incomeForm.notes, organizationId: orgId || "", createdAt: null }, ...prev.filter((e) => e.id !== ref2.id)]);
+      setEntries((prev) => [{ id: docRef.id, type: "credit", category: incomeForm.type, categoryLabel: incomeTypes[incomeForm.type]?.label, amount: Number(incomeForm.amount), date: incomeForm.date, parcelId: incomeForm.parcelId || "", parcelName: parcel?.name || "", notes: incomeForm.notes, proofUrl, organizationId: orgId || "", createdAt: null }, ...prev.filter((e) => e.id !== docRef.id)]);
       await addDoc(collection(db, "activityLogs"), {
         organizationId: orgId, userId: auth.currentUser?.uid || "", userName: auth.currentUser?.displayName || "",
         action: "INCOME_ADDED", description: `${incomeTypes[incomeForm.type]?.label} income: ${fmtPKR(Number(incomeForm.amount))}`,
@@ -221,30 +254,21 @@ export default function LedgerPage() {
     try {
       setSaving(true); setFormError("");
       let receiptUrl = "";
-      if (receiptFile) {
-        const storageRef = ref(storage, `receipts/${orgId}/${Date.now()}_receipt.jpg`);
-        await uploadBytes(storageRef, receiptFile);
-        receiptUrl = await getDownloadURL(storageRef);
-      }
-      const ref2 = await addDoc(collection(db, "ledgerEntries"), {
-        organizationId: orgId,
-        type: "debit",
+      if (receiptFile) receiptUrl = await uploadPhoto(receiptFile, `receipts/${orgId}/${Date.now()}_receipt.jpg`);
+
+      const docRef = await addDoc(collection(db, "ledgerEntries"), {
+        organizationId: orgId, type: "debit",
         category: expenseForm.category,
         categoryLabel: expenseCategories[expenseForm.category]?.label || expenseForm.category,
-        amount: Number(expenseForm.amount),
-        date: expenseForm.date,
-        parcelId: expenseForm.parcelId || "",
-        parcelName: parcel?.name || "",
-        dealerId: expenseForm.dealerId || "",
-        dealerName: dealer?.name || "",
-        notes: expenseForm.notes,
-        receiptUrl,
+        amount: Number(expenseForm.amount), date: expenseForm.date,
+        parcelId: expenseForm.parcelId || "", parcelName: parcel?.name || "",
+        dealerId: expenseForm.dealerId || "", dealerName: dealer?.name || "",
+        notes: expenseForm.notes, receiptUrl,
         location: expenseLocation.location || null,
         createdBy: auth.currentUser?.uid || "",
-        createdAt: serverTimestamp(),
-        syncStatus: "synced",
+        createdAt: serverTimestamp(), syncStatus: "synced",
       });
-      setEntries((prev) => [{ id: ref2.id, type: "debit", category: expenseForm.category, categoryLabel: expenseCategories[expenseForm.category]?.label, amount: Number(expenseForm.amount), date: expenseForm.date, parcelId: expenseForm.parcelId || "", parcelName: parcel?.name || "", dealerId: expenseForm.dealerId || "", dealerName: dealer?.name || "", notes: expenseForm.notes, organizationId: orgId || "", createdAt: null }, ...prev.filter((e) => e.id !== ref2.id)]);
+      setEntries((prev) => [{ id: docRef.id, type: "debit", category: expenseForm.category, categoryLabel: expenseCategories[expenseForm.category]?.label, amount: Number(expenseForm.amount), date: expenseForm.date, parcelId: expenseForm.parcelId || "", parcelName: parcel?.name || "", dealerId: expenseForm.dealerId || "", dealerName: dealer?.name || "", notes: expenseForm.notes, receiptUrl, organizationId: orgId || "", createdAt: null }, ...prev.filter((e) => e.id !== docRef.id)]);
       await addDoc(collection(db, "activityLogs"), {
         organizationId: orgId, userId: auth.currentUser?.uid || "", userName: auth.currentUser?.displayName || "",
         action: "EXPENSE_ADDED", description: `${expenseCategories[expenseForm.category]?.label} expense: ${fmtPKR(Number(expenseForm.amount))}`,
@@ -312,7 +336,7 @@ export default function LedgerPage() {
 
         {/* Date */}
         <label className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-2 block">Date</label>
-        <div className="border border-gray-200 rounded-2xl px-4 py-3.5 mb-4 focus-within:border-green-700 bg-white flex items-center">
+        <div className="border border-gray-200 rounded-2xl px-4 py-3.5 mb-4 bg-white flex items-center">
           <input type="date" value={incomeForm.date}
             onChange={(e) => setIncomeForm({ ...incomeForm, date: e.target.value })}
             className="flex-1 outline-none text-gray-800 text-base bg-transparent [&::-webkit-calendar-picker-indicator]:hidden" />
@@ -321,7 +345,7 @@ export default function LedgerPage() {
           </span>
         </div>
 
-        {/* Select Parcel */}
+        {/* Parcel */}
         <label className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-2 block">Select Parcel</label>
         <div className="border border-gray-200 rounded-2xl px-4 py-3.5 mb-4 bg-white">
           <select value={incomeForm.parcelId} onChange={(e) => setIncomeForm({ ...incomeForm, parcelId: e.target.value })}
@@ -340,20 +364,15 @@ export default function LedgerPage() {
         <div onClick={() => document.getElementById("incomeProofInput")?.click()}
           className="w-full h-32 border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform overflow-hidden mb-4"
           style={{ backgroundColor: "#FAFAFA" }}>
-          {incomeProofPreview ? (
-            <img src={incomeProofPreview} className="w-full h-full object-cover" alt="proof" />
-          ) : (
-            <>
-              <Camera size={28} color="#9E9E9E" />
-              <p className="text-gray-500 text-sm mt-2">Tap to upload proof</p>
-              <p className="text-gray-400 text-xs">JPG, PNG supported</p>
-            </>
-          )}
+          {incomeProofPreview
+            ? <img src={incomeProofPreview} className="w-full h-full object-cover" alt="proof" />
+            : <><Camera size={28} color="#9E9E9E" /><p className="text-gray-500 text-sm mt-2">Tap to upload proof</p><p className="text-gray-400 text-xs">Auto-compressed on upload</p></>
+          }
         </div>
 
         {/* Location */}
         <label className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-2 block">Location (Optional)</label>
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-1">
           <div className="flex-1 flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3">
             <MapPin size={18} color="#9E9E9E" className="mr-2 shrink-0" />
             <input type="text" placeholder="Location" value={incomeLocation.location?.address || ""}
@@ -367,10 +386,11 @@ export default function LedgerPage() {
           </button>
         </div>
         {incomeLocation.location && <p className="text-green-700 text-xs mb-4 ml-1">✅ Location detected</p>}
+        {!incomeLocation.location && <div className="mb-4" />}
 
         {/* Notes */}
         <label className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-2 block">Notes (Optional)</label>
-        <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-8 focus-within:border-green-700 bg-white">
+        <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-8 bg-white">
           <textarea placeholder="Enter notes" value={incomeForm.notes}
             onChange={(e) => setIncomeForm({ ...incomeForm, notes: e.target.value })}
             rows={3} className="w-full outline-none text-gray-800 text-base bg-transparent resize-none" />
@@ -441,7 +461,7 @@ export default function LedgerPage() {
           </select>
         </div>
 
-        {/* Vendor / Dealer */}
+        {/* Vendor */}
         <label className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-2 block">Vendor</label>
         <div className="border border-gray-200 rounded-2xl px-4 py-3.5 mb-4 bg-white">
           <select value={expenseForm.dealerId} onChange={(e) => setExpenseForm({ ...expenseForm, dealerId: e.target.value })}
@@ -460,20 +480,15 @@ export default function LedgerPage() {
         <div onClick={() => document.getElementById("receiptInput")?.click()}
           className="w-full h-32 border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform overflow-hidden mb-4"
           style={{ backgroundColor: "#FAFAFA" }}>
-          {receiptPreview ? (
-            <img src={receiptPreview} className="w-full h-full object-cover" alt="receipt" />
-          ) : (
-            <>
-              <Camera size={28} color="#9E9E9E" />
-              <p className="text-gray-500 text-sm mt-2">Tap to upload receipt</p>
-              <p className="text-gray-400 text-xs">JPG, PNG supported</p>
-            </>
-          )}
+          {receiptPreview
+            ? <img src={receiptPreview} className="w-full h-full object-cover" alt="receipt" />
+            : <><Camera size={28} color="#9E9E9E" /><p className="text-gray-500 text-sm mt-2">Tap to upload receipt</p><p className="text-gray-400 text-xs">Auto-compressed on upload</p></>
+          }
         </div>
 
         {/* Location */}
         <label className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-2 block">Location (Optional)</label>
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-1">
           <div className="flex-1 flex items-center border-2 border-gray-200 rounded-2xl px-4 py-3">
             <MapPin size={18} color="#9E9E9E" className="mr-2 shrink-0" />
             <input type="text" placeholder="Location" value={expenseLocation.location?.address || ""}
@@ -487,10 +502,11 @@ export default function LedgerPage() {
           </button>
         </div>
         {expenseLocation.location && <p className="text-green-700 text-xs mb-4 ml-1">✅ Location detected</p>}
+        {!expenseLocation.location && <div className="mb-4" />}
 
         {/* Notes */}
         <label className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-2 block">Notes (Optional)</label>
-        <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-8 focus-within:border-green-700 bg-white">
+        <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-8 bg-white">
           <textarea placeholder="Enter notes" value={expenseForm.notes}
             onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })}
             rows={3} className="w-full outline-none text-gray-800 text-base bg-transparent resize-none" />
@@ -514,6 +530,11 @@ export default function LedgerPage() {
 
   return (
     <div className="min-h-screen pb-28" style={{ backgroundColor: "#F5F5F5" }}>
+
+      {/* Receipt viewer modal */}
+      {receiptViewUrl && (
+        <ReceiptModal url={receiptViewUrl} onClose={() => setReceiptViewUrl(null)} />
+      )}
 
       {/* ── Header ── */}
       <div className="px-4 pt-12 pb-5" style={{ backgroundColor: "#1B5E20" }}>
@@ -573,21 +594,28 @@ export default function LedgerPage() {
         ) : (
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             {monthEntries.map((entry, idx) => {
-              const isCredit = entry.type === "credit";
-              const cfg   = isCredit ? incomeTypes[entry.category] : expenseCategories[entry.category];
-              const emoji = cfg?.emoji || (isCredit ? "💰" : "📋");
-              const label = entry.categoryLabel || cfg?.label || entry.category;
+              const isCredit  = entry.type === "credit";
+              const cfg       = isCredit ? incomeTypes[entry.category] : expenseCategories[entry.category];
+              const emoji     = cfg?.emoji || (isCredit ? "💰" : "📋");
+              const label     = entry.categoryLabel || cfg?.label || entry.category;
+              const photoUrl  = entry.receiptUrl || entry.proofUrl || "";
+
               return (
                 <div key={entry.id}
                   className={`flex items-center gap-3 px-4 py-3.5 ${idx < monthEntries.length - 1 ? "border-b border-gray-50" : ""}`}>
+                  {/* Date */}
                   <div className="w-10 shrink-0 text-center">
                     <p className="text-gray-400 text-xs leading-tight">{fmtDate(entry.date).split(" ")[0]}</p>
                     <p className="text-gray-400 text-xs leading-tight">{fmtDate(entry.date).split(" ")[1]}</p>
                   </div>
+
+                  {/* Icon */}
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                     style={{ backgroundColor: isCredit ? "#E8F5E9" : "#FFEBEE" }}>
                     {isCredit ? <TrendingUp size={18} color="#1B5E20" /> : <TrendingDown size={18} color="#B71C1C" />}
                   </div>
+
+                  {/* Title + details */}
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-800 font-semibold text-sm truncate">{emoji} {label}</p>
                     <p className="text-xs" style={{ color: isCredit ? "#1B5E20" : "#B71C1C" }}>
@@ -595,10 +623,22 @@ export default function LedgerPage() {
                     </p>
                     {entry.notes ? <p className="text-gray-400 text-xs truncate">{entry.notes}</p> : null}
                   </div>
-                  <div className="shrink-0 text-right">
+
+                  {/* Amount + receipt button */}
+                  <div className="shrink-0 text-right flex flex-col items-end gap-1">
                     <p className="font-bold text-base" style={{ color: isCredit ? "#1B5E20" : "#B71C1C" }}>
                       {isCredit ? "+" : "−"}{fmtPKR(entry.amount)}
                     </p>
+                    {photoUrl && (
+                      <button
+                        onClick={() => setReceiptViewUrl(photoUrl)}
+                        className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-lg active:scale-95 transition-transform"
+                        style={{ backgroundColor: "#E8F5E9", color: "#1B5E20" }}
+                      >
+                        <Receipt size={11} />
+                        Receipt
+                      </button>
+                    )}
                   </div>
                 </div>
               );

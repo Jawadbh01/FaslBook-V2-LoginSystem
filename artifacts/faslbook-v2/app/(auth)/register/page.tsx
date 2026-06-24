@@ -6,6 +6,7 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase/config";
+import { compressImage } from "@/lib/utils/compressImage";
 import {
   User, Mail, Lock, Phone,
   ArrowLeft, Loader2, Eye, EyeOff,
@@ -62,8 +63,9 @@ export default function RegisterPage() {
 
       let photoUrl = "";
       if (photoFile) {
+        const compressed = await compressImage(photoFile, { maxWidth: 400, quality: 0.5 });
         const storageRef = ref(storage, `profiles/${result.user.uid}/profile.jpg`);
-        await uploadBytes(storageRef, photoFile);
+        await uploadBytes(storageRef, compressed);
         photoUrl = await getDownloadURL(storageRef);
       }
 

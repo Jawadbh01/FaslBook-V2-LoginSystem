@@ -6,6 +6,7 @@ import { signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase/config";
+import { compressImage } from "@/lib/utils/compressImage";
 import { useAuthStore } from "@/store/authStore";
 import { useLangStore } from "@/store/langStore";
 import {
@@ -57,8 +58,9 @@ export default function ProfilePage() {
       setError("");
       const currentUser = auth.currentUser;
       if (!currentUser) return;
-      const storageRef = ref(storage, `profiles/${currentUser.uid}/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
+      const compressed = await compressImage(file, { maxWidth: 400, quality: 0.5 });
+      const storageRef = ref(storage, `profiles/${currentUser.uid}/${Date.now()}_${compressed.name}`);
+      await uploadBytes(storageRef, compressed);
       const url = await getDownloadURL(storageRef);
       await updateDoc(doc(db, "users", currentUser.uid), { photoUrl: url });
       setPhotoUrl(url);
