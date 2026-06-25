@@ -1,0 +1,547 @@
+Build Phase 10 - Reports + Offline Sync + Notifications + Security Rules + Production for FaslBook V2.
+
+This is the final phase. Do not break any existing functionality.
+
+PART 1 - REPORTS SYSTEM
+Create app/(dashboard)/reports/page.tsx
+
+REPORTS HOME SCREEN:
+Green header "Reports" with date range selector icon top right.
+Six report cards in 2 column grid:
+- Farm Overview (chart icon, green)
+- Farmer Report (person icon, blue)  
+- Worker Report (clock icon, orange)
+- Dealer Report, handshake icon, purple)
+- Godown Report (warehouse icon, teal)
+- Parcel Report (map icon, brown)
+
+Each card: colored icon, title, short description, tap to open report.
+
+Export row at bottom:
+- PDF button (red)
+- Excel button (green)
+- Print button (gray)
+- WhatsApp Share button (green)
+
+---
+
+Create app/(dashboard)/reports/farm/page.tsx - Farm Overview Report
+
+HEADER: Green header "Farm Overview" with date range pills: This Week, This Month, This Year, Custom
+
+SUMMARY CARDS:
+- Total Income (green)
+- Total Expense (red)
+- Net Profit (blue)
+- Inventory Value (orange)
+
+INCOME BREAKDOWN:
+Bar or list showing income by type:
+- Crop Sale
+- Rent
+- Livestock
+- Other
+
+EXPENSE BREAKDOWN:
+List showing expense by category:
+- Seed, Fertilizer, Water, Labour, Fuel, Machinery, Transport, Other
+
+CROP PERFORMANCE:
+List of crops this season with status and harvest quantity.
+
+Read all data from Firestore filtered by organizationId and date range.
+
+---
+
+Create app/(dashboard)/reports/farmer/page.tsx - Farmer Report
+
+List of farmers with selector at top.
+For selected farmer show:
+- Assigned parcels with acres
+- Active and harvested crops
+- Stock received from godown
+- Total expenses on their parcels
+- Harvest history with quantities
+
+---
+
+Create app/(dashboard)/reports/worker/page.tsx - Worker Report
+
+Worker selector at top.
+Date range selector.
+For selected worker show:
+- Attendance summary: Present, Absent, Half Day counts
+- Attendance calendar view
+- Total earned amount
+- Payment history
+- Pending amount
+
+---
+
+Create app/(dashboard)/reports/godown/page.tsx - Godown Report
+
+Show:
+- Total inventory value
+- Stock In this month
+- Stock Out this month
+- Item by item breakdown: name, category, current stock, value
+- Recent transactions list
+
+---
+
+Create app/(dashboard)/reports/dealer/page.tsx - Dealer Report
+
+For each dealer show:
+- Total purchased
+- Total paid
+- Outstanding balance
+- Transaction history list
+
+---
+
+Create app/(dashboard)/reports/parcel/page.tsx - Parcel Report
+
+Parcel selector at top.
+For selected parcel:
+- Crop history
+- Total expenses
+- Harvest records
+- Profitability estimate: income from crops - expenses on parcel
+
+---
+
+PART 2 - EXPORT FUNCTIONS
+
+Create lib/exports/pdfExport.ts:
+
+Install and use jsPDF and jspdf-autotable.
+
+export async function exportToPDF(title: string, data: any[], columns: string[]) {
+  const { jsPDF } = await import("jspdf");
+  const autoTable = (await import("jspdf-autotable")).default;
+  
+  const doc = new jsPDF();
+  
+  // Header
+  doc.setFillColor(27, 94, 32);
+  doc.rect(0, 0, 210, 25, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.text("FaslBook - " + title, 14, 16);
+  
+  // Date
+  doc.setFontSize(10);
+  doc.text(new Date().toLocaleDateString("en-PK"), 160, 16);
+  
+  // Table
+  autoTable(doc, {
+    startY: 30,
+    head: [columns],
+    body: data,
+    theme: "striped",
+    headStyles: { fillColor: [27, 94, 32] },
+  });
+  
+  doc.save(`FaslBook-${title}-${Date.now()}.pdf`);
+}
+
+Create lib/exports/excelExport.ts:
+
+Use SheetJS (xlsx package).
+
+export async function exportToExcel(title: string, data: any[], columns: string[]) {
+  const XLSX = await import("xlsx");
+  const ws = XLSX.utils.aoa_to_sheet([columns, ...data]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, title);
+  XLSX.writeFile(wb, `FaslBook-${title}-${Date.now()}.xlsx`);
+}
+
+Create lib/exports/whatsappShare.ts:
+
+export function shareViaWhatsApp(title: string, summary: string) {
+  const text = `🌾 FaslBook Report - ${title}\n\n${summary}\n\nGenerated: ${new Date().toLocaleDateString("en-PK")}`;
+  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, "_blank");
+}
+
+Add export buttons to each report page that call these functions.
+
+---
+
+PART 3 - OFFLINE SYNC
+
+Update lib/firebase/config.ts:
+
+Replace getFirestore with initializeFirestore with offline cache:
+
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
+
+Add sync status indicator component:
+Create components/shared/SyncIndicator.tsx:
+
+"use client";
+import { useEffect, useState } from "react";
+import { Wifi, WifiOff } from "lucide-react";
+
+export default function SyncIndicator() {
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    setOnline(navigator.onLine);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  if (online) return null;
+
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 z-50 py-2 px-4 flex items-center justify-center gap-2 text-white text-sm font-medium"
+      style={{ backgroundColor: "#E65100" }}
+    >
+      <WifiOff size={16} />
+      <span>Offline - Changes will sync when connected</span>
+    </div>
+  );
+}
+
+Add SyncIndicator to app/layout.tsx inside body above AuthProvider children.
+
+---
+
+PART 4 - NOTIFICATIONS SYSTEM
+
+Create app/(dashboard)/notifications/page.tsx:
+
+Green header "Notifications" with bell icon.
+Filter tabs: All | Farm | Inventory | Finance | Team
+
+Read from notifications Firestore collection where organizationId matches.
+Each notification row:
+- Colored icon based on type
+- Title bold
+- Description gray
+- Time ago right
+- Unread = light green background
+- Read = white background
+- Tap to mark as read
+
+Mark all read button top right.
+
+Empty state: bell illustration, "No notifications yet"
+
+Create lib/notifications/createNotification.ts:
+
+export async function createNotification(params: {
+  organizationId: string;
+  title: string;
+  description: string;
+  type: "farm" | "inventory" | "finance" | "team";
+  targetUserId?: string;
+}) {
+  const { addDoc, collection, serverTimestamp } = await import("firebase/firestore");
+  const { db } = await import("@/lib/firebase/config");
+  
+  await addDoc(collection(db, "notifications"), {
+    organizationId: params.organizationId,
+    title: params.title,
+    description: params.description,
+    type: params.type,
+    targetUserId: params.targetUserId || null,
+    read: false,
+    createdAt: serverTimestamp(),
+    syncStatus: "synced",
+  });
+}
+
+Add createNotification calls to key workflow points:
+- When harvest is recorded: type farm, "Harvest Recorded: X Maund of Wheat added to Godown"
+- When attendance saved: type team, "Attendance marked for X workers"
+- When dealer purchase added: type finance, "New purchase from DealerName: Rs. X"
+- When join request received: type team, "New join request from UserName"
+- When join request approved: type team, "Your request to join FarmName was approved"
+- When loan added: type finance, "New loan recorded: Rs. X from LenderName"
+- When stock is low (currentStock < 10): type inventory, "Low stock alert: ItemName only X units left"
+
+Update TopBar notification bell to show unread count badge.
+In components/shared/TopBar.tsx add:
+- Listen to notifications collection where organizationId matches and read = false
+- Show red badge with count on bell icon if count > 0
+- Tap bell → navigate to /notifications
+
+---
+
+PART 5 - FIRESTORE SECURITY RULES
+
+Create firestore.rules file in project root:
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isLandlord() {
+      return isAuthenticated() && getUserData().role == "landlord";
+    }
+    
+    function isManager() {
+      return isAuthenticated() && getUserData().role == "manager";
+    }
+    
+    function isFarmer() {
+      return isAuthenticated() && getUserData().role == "farmer";
+    }
+    
+    function isWorker() {
+      return isAuthenticated() && getUserData().role == "worker";
+    }
+    
+    function belongsToOrg(orgId) {
+      return isAuthenticated() && getUserData().organizationId == orgId;
+    }
+    
+    function canManage() {
+      return isLandlord() || isManager();
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Organizations
+    match /organizations/{orgId} {
+      allow read: if belongsToOrg(orgId);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && belongsToOrg(orgId) && isLandlord();
+    }
+    
+    // Join requests
+    match /joinRequests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+    }
+    
+    // Parcels
+    match /parcels/{parcelId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+      allow update: if isAuthenticated() && canManage();
+    }
+    
+    // Crops
+    match /crops/{cropId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+      allow update: if isAuthenticated() && canManage();
+    }
+    
+    // Inventory
+    match /inventoryItems/{itemId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+      allow update: if isAuthenticated() && canManage();
+    }
+    
+    match /inventoryTransactions/{txId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+    }
+    
+    // Expenses
+    match /expenses/{expId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+      allow update: if isAuthenticated() && canManage();
+    }
+    
+    // Income
+    match /income/{incId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+    }
+    
+    // Ledger - read only for users, system writes
+    match /ledgerEntries/{ledgerId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+    }
+    
+    // Dealers
+    match /dealers/{dealerId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+      allow update: if isAuthenticated() && canManage();
+    }
+    
+    match /dealerTransactions/{txId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+    }
+    
+    // Loans
+    match /loans/{loanId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+      allow update: if isAuthenticated() && canManage();
+    }
+    
+    // Workers
+    match /workers/{workerId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+      allow update: if isAuthenticated() && canManage();
+    }
+    
+    // Attendance
+    match /attendance/{attId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+      allow update: if isAuthenticated() && canManage();
+    }
+    
+    // Worker payments
+    match /workerPayments/{payId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated() && canManage();
+    }
+    
+    // Notifications
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+    }
+    
+    // Activity logs
+    match /activityLogs/{logId} {
+      allow read: if isAuthenticated() && belongsToOrg(resource.data.organizationId);
+      allow create: if isAuthenticated();
+    }
+  }
+}
+
+---
+
+PART 6 - PERFORMANCE OPTIMIZATIONS
+
+Update next.config.js:
+const nextConfig = {
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
+  images: {
+    domains: ["firebasestorage.googleapis.com"],
+  },
+};
+module.exports = nextConfig;
+
+Add to app/layout.tsx head section:
+<link rel="preconnect" href="https://firestore.googleapis.com" />
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" />
+<link rel="preconnect" href="https://storage.googleapis.com" />
+<link rel="dns-prefetch" href="https://firestore.googleapis.com" />
+<meta name="theme-color" content="#1B5E20" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+Create public/manifest.json for PWA:
+{
+  "name": "FaslBook",
+  "short_name": "FaslBook",
+  "description": "Farm Operating System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1B5E20",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+
+Add to layout.tsx head:
+<link rel="manifest" href="/manifest.json" />
+
+---
+
+PART 7 - VERCEL DEPLOYMENT SETUP
+
+Create vercel.json:
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_FIREBASE_API_KEY": "@firebase_api_key",
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN": "@firebase_auth_domain",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID": "@firebase_project_id",
+    "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET": "@firebase_storage_bucket",
+    "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "@firebase_messaging_sender_id",
+    "NEXT_PUBLIC_FIREBASE_APP_ID": "@firebase_app_id"
+  }
+}
+
+Create .env.example:
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+Update package.json scripts:
+"scripts": {
+  "dev": "next dev",
+  "build": "next build",
+  "start": "next start",
+  "lint": "next lint"
+}
+
+---
+
+FINAL CHECKLIST - After all changes verify:
+1. npm run build completes without errors
+2. All pages load correctly
+3. Firebase auth works
+4. Firestore reads and writes work
+5. No console errors
+6. Offline indicator shows when disconnected
+7. Reports pages load with real data
+8. Export functions work
+9. Notifications show in bell icon
+
+Run npm run build and fix any TypeScript or build errors before finishing.

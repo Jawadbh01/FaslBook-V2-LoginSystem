@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronLeft } from "lucide-react";
 import { useLangStore } from "@/store/langStore";
+import SyncIndicator from "@/components/shared/SyncIndicator";
 
 const MAIN_NAV = ["/ledger", "/inventory", "/dealers", "/workers"];
 
@@ -26,21 +27,22 @@ const HIDE_TOPBAR = new Set(["/overview", "/"]);
 
 export default function TopBar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const { t } = useLangStore();
+  const router   = useRouter();
+  const { t }    = useLangStore();
 
   if (HIDE_TOPBAR.has(pathname ?? "") || (pathname ?? "").startsWith("/overview")) return null;
 
   const isMainNav = MAIN_NAV.includes(pathname);
-  const titleKey = PAGE_TITLE_KEYS[pathname] ?? "";
-  const title = titleKey ? t(titleKey) : "FaslBook";
+  const titleKey  = PAGE_TITLE_KEYS[pathname] ?? "";
+  const title     = titleKey ? t(titleKey) : "FaslBook";
 
   if (isMainNav) {
     return (
       <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
         <div className="flex items-center justify-between h-14 px-4">
           <span className="font-bold text-lg text-gray-800">{title}</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <SyncIndicator iconColor="#1B5E20" />
             <button aria-label="Notifications" className="p-2 rounded-full hover:bg-gray-100 transition-colors">
               <Bell size={22} color="#1B5E20" />
             </button>
@@ -61,6 +63,7 @@ export default function TopBar() {
           <ChevronLeft size={24} color="white" />
         </button>
         <span className="font-bold text-lg text-white flex-1">{title}</span>
+        <SyncIndicator iconColor="white" />
         <button aria-label="Notifications" className="p-2 rounded-full hover:bg-white/10 transition-colors">
           <Bell size={22} color="white" />
         </button>
