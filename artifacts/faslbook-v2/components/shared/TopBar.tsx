@@ -1,9 +1,11 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { useLangStore } from "@/store/langStore";
+import { useAuthStore } from "@/store/authStore";
 import SyncIndicator from "@/components/shared/SyncIndicator";
+import NotificationBell from "@/components/shared/NotificationBell";
 
 const MAIN_NAV = ["/ledger", "/inventory", "/dealers", "/workers"];
 
@@ -26,9 +28,11 @@ const PAGE_TITLE_KEYS: Record<string, string> = {
 const HIDE_TOPBAR = new Set(["/overview", "/"]);
 
 export default function TopBar() {
-  const pathname = usePathname();
-  const router   = useRouter();
-  const { t }    = useLangStore();
+  const pathname     = usePathname();
+  const router       = useRouter();
+  const { t }        = useLangStore();
+  const organization = useAuthStore((s) => s.organization);
+  const orgId        = organization?.id ?? null;
 
   if (HIDE_TOPBAR.has(pathname ?? "") || (pathname ?? "").startsWith("/overview")) return null;
 
@@ -43,9 +47,7 @@ export default function TopBar() {
           <span className="font-bold text-lg text-gray-800">{title}</span>
           <div className="flex items-center gap-1">
             <SyncIndicator iconColor="#1B5E20" />
-            <button aria-label="Notifications" className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-              <Bell size={22} color="#1B5E20" />
-            </button>
+            <NotificationBell organizationId={orgId} iconColor="#1B5E20" />
           </div>
         </div>
       </header>
@@ -64,9 +66,7 @@ export default function TopBar() {
         </button>
         <span className="font-bold text-lg text-white flex-1">{title}</span>
         <SyncIndicator iconColor="white" />
-        <button aria-label="Notifications" className="p-2 rounded-full hover:bg-white/10 transition-colors">
-          <Bell size={22} color="white" />
-        </button>
+        <NotificationBell organizationId={orgId} iconColor="white" />
       </div>
     </header>
   );

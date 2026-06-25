@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import SyncIndicator from "@/components/shared/SyncIndicator";
+import NotificationBell from "@/components/shared/NotificationBell";
 
 // ── Helpers ────────────────────────────────────────────────────
 const fmt = (n: number) => "Rs. " + n.toLocaleString("en-PK");
@@ -292,11 +293,7 @@ export default function OverviewPage() {
               </Link>
             )}
             <SyncIndicator iconColor="white" />
-            <Link href="/notifications">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
-                <Bell size={18} color="white" />
-              </div>
-            </Link>
+            <NotificationBell organizationId={organization?.id ?? null} iconColor="white" />
           </div>
         </div>
       </div>
