@@ -651,20 +651,21 @@ export default function LedgerPage() {
                   </div>
 
                   {/* Amount + receipt button */}
-                  <div className="shrink-0 text-right flex flex-col items-end gap-1">
+                  <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
                     <p className="font-bold text-base" style={{ color: isCredit ? "#1B5E20" : "#B71C1C" }}>
                       {isCredit ? "+" : "−"}{fmtPKR(entry.amount)}
                     </p>
-                    {photoUrl && (
-                      <button
-                        onClick={() => setReceiptViewUrl(photoUrl)}
-                        className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-lg active:scale-95 transition-transform"
-                        style={{ backgroundColor: "#E8F5E9", color: "#1B5E20" }}
-                      >
-                        <Receipt size={11} />
-                        Receipt
-                      </button>
-                    )}
+                    <button
+                      onClick={() => photoUrl && setReceiptViewUrl(photoUrl)}
+                      className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg transition-all active:scale-95"
+                      style={photoUrl
+                        ? { backgroundColor: "#E8F5E9", color: "#1B5E20" }
+                        : { backgroundColor: "#F5F5F5", color: "#BDBDBD", cursor: "default" }
+                      }
+                    >
+                      <Receipt size={11} />
+                      {photoUrl ? "Receipt" : "No Receipt"}
+                    </button>
                   </div>
                 </div>
               );
