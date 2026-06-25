@@ -53,23 +53,36 @@ export default function ProfilePage() {
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      setUploadingPhoto(true);
-      setError("");
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
-      const compressed = await compressImage(file, { maxWidth: 400, quality: 0.5 });
-      const storageRef = ref(storage, `profiles/${currentUser.uid}/${Date.now()}_${compressed.name}`);
-      await uploadBytes(storageRef, compressed);
-      const url = await getDownloadURL(storageRef);
-      await updateDoc(doc(db, "users", currentUser.uid), { photoUrl: url });
-      setPhotoUrl(url);
-    } catch (err) {
-      console.error("Photo upload error:", err);
-      setError("Failed to upload photo. Please check Firebase Storage rules.");
-    } finally {
-      setUploadingPhoto(false);
-    }
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    // Show preview INSTANTLY from local file — no waiting
+    const localUrl = URL.createObjectURL(file);
+    setPhotoUrl(localUrl);
+    setError("");
+    setUploadingPhoto(true);
+
+    // Upload in background — UI is already updated
+    (async () => {
+      try {
+        const compressed = await compressImage(file, { maxWidth: 250, quality: 0.35 });
+        const storageRef = ref(storage, `profiles/${currentUser.uid}/photo.jpg`);
+        await uploadBytes(storageRef, compressed);
+        const url = await getDownloadURL(storageRef);
+        await updateDoc(doc(db, "users", currentUser.uid), { photoUrl: url });
+        setPhotoUrl(url);
+        URL.revokeObjectURL(localUrl);
+      } catch (err: any) {
+        console.error("Photo upload error:", err);
+        if (err?.code === "storage/unauthorized") {
+          setError("Storage permission denied — allow authenticated writes in Firebase Storage rules.");
+        } else {
+          setError("Upload failed. Photo shown locally but not saved.");
+        }
+      } finally {
+        setUploadingPhoto(false);
+      }
+    })();
   };
 
   const handleLogout = async () => {

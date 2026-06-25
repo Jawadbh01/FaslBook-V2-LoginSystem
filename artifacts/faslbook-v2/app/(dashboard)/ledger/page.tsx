@@ -204,9 +204,9 @@ export default function LedgerPage() {
   };
   const goBack = () => { setView("list"); resetForms(); };
 
-  // ── Upload helper (compress → storage) ────────────────────
+  // ── Upload helper (compress → storage, background) ─────────
   async function uploadPhoto(file: File, path: string): Promise<string> {
-    const compressed = await compressImage(file, { maxWidth: 1024, quality: 0.55 });
+    const compressed = await compressImage(file, { maxWidth: 500, quality: 0.3 });
     const storageRef = ref(storage, path);
     await uploadBytes(storageRef, compressed);
     return getDownloadURL(storageRef);
@@ -219,30 +219,43 @@ export default function LedgerPage() {
     const parcel = parcels.find((p) => p.id === incomeForm.parcelId);
     try {
       setSaving(true); setFormError("");
-      let proofUrl = "";
-      if (incomeProofFile) proofUrl = await uploadPhoto(incomeProofFile, `proofs/${orgId}/${Date.now()}_proof.jpg`);
 
+      // 1. Save entry to Firestore immediately (no photo URL yet)
       const docRef = await addDoc(collection(db, "ledgerEntries"), {
         organizationId: orgId, type: "credit",
         category: incomeForm.type,
         categoryLabel: incomeTypes[incomeForm.type]?.label || incomeForm.type,
         amount: Number(incomeForm.amount), date: incomeForm.date,
         parcelId: incomeForm.parcelId || "", parcelName: parcel?.name || "",
-        notes: incomeForm.notes, proofUrl,
+        notes: incomeForm.notes, proofUrl: "",
         location: incomeLocation.location || null,
         createdBy: auth.currentUser?.uid || "",
         createdAt: serverTimestamp(), syncStatus: "synced",
       });
-      setEntries((prev) => [{ id: docRef.id, type: "credit", category: incomeForm.type, categoryLabel: incomeTypes[incomeForm.type]?.label, amount: Number(incomeForm.amount), date: incomeForm.date, parcelId: incomeForm.parcelId || "", parcelName: parcel?.name || "", notes: incomeForm.notes, proofUrl, organizationId: orgId || "", createdAt: null }, ...prev.filter((e) => e.id !== docRef.id)]);
-      await addDoc(collection(db, "activityLogs"), {
+
+      // 2. Show success instantly — don't wait for photo upload
+      setSuccessMsg({ title: "Income Saved! ✅", sub: `+${fmtPKR(Number(incomeForm.amount))} (${incomeTypes[incomeForm.type]?.label})` });
+      setSuccess(true);
+      setSaving(false);
+
+      // 3. Upload proof in background and patch the entry
+      if (incomeProofFile) {
+        uploadPhoto(incomeProofFile, `proofs/${orgId}/${docRef.id}_proof.jpg`)
+          .then((url) => {
+            import("firebase/firestore").then(({ doc: fsDoc, updateDoc }) => {
+              updateDoc(fsDoc(db, "ledgerEntries", docRef.id), { proofUrl: url }).catch(console.error);
+            });
+          })
+          .catch(console.error);
+      }
+
+      addDoc(collection(db, "activityLogs"), {
         organizationId: orgId, userId: auth.currentUser?.uid || "", userName: auth.currentUser?.displayName || "",
         action: "INCOME_ADDED", description: `${incomeTypes[incomeForm.type]?.label} income: ${fmtPKR(Number(incomeForm.amount))}`,
         createdAt: serverTimestamp(), syncStatus: "synced",
-      });
-      setSuccessMsg({ title: "Income Saved! ✅", sub: `+${fmtPKR(Number(incomeForm.amount))} (${incomeTypes[incomeForm.type]?.label})` });
-      setSuccess(true);
-    } catch (e) { console.error(e); setFormError("Failed to save. Try again."); }
-    finally { setSaving(false); }
+      }).catch(console.error);
+
+    } catch (e) { console.error(e); setFormError("Failed to save. Try again."); setSaving(false); }
   };
 
   // ── Add Expense ────────────────────────────────────────────
@@ -253,9 +266,8 @@ export default function LedgerPage() {
     const dealer = dealers.find((d) => d.id === expenseForm.dealerId);
     try {
       setSaving(true); setFormError("");
-      let receiptUrl = "";
-      if (receiptFile) receiptUrl = await uploadPhoto(receiptFile, `receipts/${orgId}/${Date.now()}_receipt.jpg`);
 
+      // 1. Save entry to Firestore immediately (no receipt URL yet)
       const docRef = await addDoc(collection(db, "ledgerEntries"), {
         organizationId: orgId, type: "debit",
         category: expenseForm.category,
@@ -263,21 +275,35 @@ export default function LedgerPage() {
         amount: Number(expenseForm.amount), date: expenseForm.date,
         parcelId: expenseForm.parcelId || "", parcelName: parcel?.name || "",
         dealerId: expenseForm.dealerId || "", dealerName: dealer?.name || "",
-        notes: expenseForm.notes, receiptUrl,
+        notes: expenseForm.notes, receiptUrl: "",
         location: expenseLocation.location || null,
         createdBy: auth.currentUser?.uid || "",
         createdAt: serverTimestamp(), syncStatus: "synced",
       });
-      setEntries((prev) => [{ id: docRef.id, type: "debit", category: expenseForm.category, categoryLabel: expenseCategories[expenseForm.category]?.label, amount: Number(expenseForm.amount), date: expenseForm.date, parcelId: expenseForm.parcelId || "", parcelName: parcel?.name || "", dealerId: expenseForm.dealerId || "", dealerName: dealer?.name || "", notes: expenseForm.notes, receiptUrl, organizationId: orgId || "", createdAt: null }, ...prev.filter((e) => e.id !== docRef.id)]);
-      await addDoc(collection(db, "activityLogs"), {
+
+      // 2. Show success instantly — don't wait for photo upload
+      setSuccessMsg({ title: "Expense Saved! ✅", sub: `−${fmtPKR(Number(expenseForm.amount))} (${expenseCategories[expenseForm.category]?.label})` });
+      setSuccess(true);
+      setSaving(false);
+
+      // 3. Upload receipt in background and patch the entry
+      if (receiptFile) {
+        uploadPhoto(receiptFile, `receipts/${orgId}/${docRef.id}_receipt.jpg`)
+          .then((url) => {
+            import("firebase/firestore").then(({ doc: fsDoc, updateDoc }) => {
+              updateDoc(fsDoc(db, "ledgerEntries", docRef.id), { receiptUrl: url }).catch(console.error);
+            });
+          })
+          .catch(console.error);
+      }
+
+      addDoc(collection(db, "activityLogs"), {
         organizationId: orgId, userId: auth.currentUser?.uid || "", userName: auth.currentUser?.displayName || "",
         action: "EXPENSE_ADDED", description: `${expenseCategories[expenseForm.category]?.label} expense: ${fmtPKR(Number(expenseForm.amount))}`,
         createdAt: serverTimestamp(), syncStatus: "synced",
-      });
-      setSuccessMsg({ title: "Expense Saved! ✅", sub: `−${fmtPKR(Number(expenseForm.amount))} (${expenseCategories[expenseForm.category]?.label})` });
-      setSuccess(true);
-    } catch (e) { console.error(e); setFormError("Failed to save. Try again."); }
-    finally { setSaving(false); }
+      }).catch(console.error);
+
+    } catch (e) { console.error(e); setFormError("Failed to save. Try again."); setSaving(false); }
   };
 
   // ══════════════════════════════════════════════════════════
