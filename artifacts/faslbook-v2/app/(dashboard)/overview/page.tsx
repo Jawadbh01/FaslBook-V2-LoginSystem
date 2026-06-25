@@ -18,6 +18,7 @@ import {
   ChevronRight, Copy, Check, HandCoins,
 } from "lucide-react";
 import Link from "next/link";
+import SyncIndicator from "@/components/shared/SyncIndicator";
 
 // ── Helpers ────────────────────────────────────────────────────
 const fmt = (n: number) => "Rs. " + n.toLocaleString("en-PK");
@@ -290,6 +291,7 @@ export default function OverviewPage() {
                 </div>
               </Link>
             )}
+            <SyncIndicator iconColor="white" />
             <Link href="/notifications">
               <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
                 <Bell size={18} color="white" />
