@@ -15,7 +15,8 @@ import {
   Package, Plus, ArrowUpRight,
   ArrowDownRight, Wheat, Clock,
   Users, LayoutGrid, Bell, MapPin,
-  ChevronRight, Copy, Check, HandCoins,
+  ChevronRight, Copy, Check, HandCoins, Printer, X,
+  BarChart2, User, Handshake, Warehouse, Map,
 } from "lucide-react";
 import Link from "next/link";
 import SyncIndicator from "@/components/shared/SyncIndicator";
@@ -47,11 +48,21 @@ const getGreeting = (): "good_morning" | "good_afternoon" | "good_evening" => {
   return "good_evening";
 };
 
+const PRINT_REPORTS = [
+  { key: "farm",    label: "Farm Overview",  Icon: BarChart2,  color: "#1B5E20", bg: "#E8F5E9",  href: "/reports/farm" },
+  { key: "farmer",  label: "Farmer Report",  Icon: User,       color: "#1565C0", bg: "#E3F2FD",  href: "/reports/farmer" },
+  { key: "worker",  label: "Worker Report",  Icon: Clock,      color: "#E65100", bg: "#FFF3E0",  href: "/reports/worker" },
+  { key: "dealer",  label: "Dealer Report",  Icon: Handshake,  color: "#6A1B9A", bg: "#F3E5F5",  href: "/reports/dealer" },
+  { key: "godown",  label: "Godown Report",  Icon: Warehouse,  color: "#00695C", bg: "#E0F2F1",  href: "/reports/godown" },
+  { key: "parcel",  label: "Parcel Report",  Icon: Map,        color: "#4E342E", bg: "#EFEBE9",  href: "/reports/parcel" },
+];
+
 export default function OverviewPage() {
   const { organization, role, user } = useAuthStore();
   const { t } = useLangStore();
   const router = useRouter();
   const orgId = organization?.id;
+  const [showPrintPicker, setShowPrintPicker] = useState(false);
 
   // Prefetch likely next pages so navigation feels instant
   useEffect(() => {
@@ -280,6 +291,13 @@ export default function OverviewPage() {
 
           {/* Right icons */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowPrintPicker(true)}
+              className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+            >
+              <Printer size={18} color="white" />
+            </button>
             {pendingRequests > 0 && (
               <Link href="/approvals">
                 <div className="relative">
@@ -426,6 +444,43 @@ export default function OverviewPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Print Picker Modal ────────────────────────────────── */}
+      {showPrintPicker && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          onClick={() => setShowPrintPicker(false)}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-t-3xl px-4 pt-5 pb-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-bold text-gray-800 text-base">Print Report</p>
+              <button onClick={() => setShowPrintPicker(false)} className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100">
+                <X size={16} color="#757575" />
+              </button>
+            </div>
+            <p className="text-gray-400 text-xs mb-4">Select which report to open and print</p>
+            <div className="grid grid-cols-2 gap-3">
+              {PRINT_REPORTS.map(({ key, label, Icon, color, bg, href }) => (
+                <button
+                  key={key}
+                  onClick={() => { setShowPrintPicker(false); router.push(href); }}
+                  className="flex items-center gap-3 p-3 rounded-2xl active:scale-95 transition-transform text-left"
+                  style={{ backgroundColor: bg }}
+                >
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/60">
+                    <Icon size={18} color={color} />
+                  </div>
+                  <span className="text-xs font-bold leading-tight" style={{ color }}>{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

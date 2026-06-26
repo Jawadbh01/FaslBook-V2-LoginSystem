@@ -13,8 +13,9 @@ import { useAuthStore } from "@/store/authStore";
 import {
   ArrowLeft, Plus, TrendingUp, TrendingDown,
   ChevronLeft, ChevronRight, Loader2, CheckCircle,
-  MapPin, Camera, X, Receipt,
+  MapPin, Camera, X, Receipt, Printer,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 // ── Types ──────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -120,6 +121,7 @@ function ReceiptModal({ url, onClose }: { url: string; onClose: () => void }) {
 export default function LedgerPage() {
   const { organization, role } = useAuthStore();
   const searchParams = useSearchParams();
+  const router  = useRouter();
   const orgId   = organization?.id;
   const canEdit = role === "landlord" || role === "manager";
 
@@ -564,8 +566,20 @@ export default function LedgerPage() {
 
       {/* ── Header ── */}
       <div className="px-4 pt-12 pb-5" style={{ backgroundColor: "#1B5E20" }}>
-        <h1 className="text-white text-2xl font-bold">Khata</h1>
-        <p className="text-green-200 text-xs mt-0.5">Farm Ledger</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-white text-2xl font-bold">Khata</h1>
+            <p className="text-green-200 text-xs mt-0.5">Farm Ledger</p>
+          </div>
+          <button
+            onClick={() => router.push("/reports/farm")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
+          >
+            <Printer size={14} />
+            Print
+          </button>
+        </div>
       </div>
 
       <div className="px-4 pt-4">
