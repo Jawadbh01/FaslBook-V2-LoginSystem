@@ -75,6 +75,19 @@ export default function OverviewPage() {
     router.prefetch("/reports");
   }, [router]);
 
+  // Request push notification permission (after 3 s delay, first visit only)
+  useEffect(() => {
+    if (!orgId) return;
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "default") return;
+    const t = setTimeout(() => {
+      import("@/lib/firebase/config")
+        .then(({ requestNotificationPermission }) => requestNotificationPermission(orgId))
+        .catch(console.error);
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [orgId]);
+
   // ── State ────────────────────────────────────────────────────
   const [userName, setUserName]           = useState<string>("");
   const [income, setIncome]               = useState(0);

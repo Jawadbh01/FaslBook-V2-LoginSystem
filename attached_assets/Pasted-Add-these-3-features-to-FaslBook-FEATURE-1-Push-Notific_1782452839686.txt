@@ -1,0 +1,279 @@
+Add these 3 features to FaslBook:
+
+FEATURE 1 - Push Notifications using Firebase Cloud Messaging:
+
+Install firebase messaging. In lib/firebase/config.ts add:
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
+
+export const messaging = typeof window !== "undefined" ? getMessaging(app) : null;
+
+export async function requestNotificationPermission(organizationId: string) {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return null;
+    const { messaging } = await import("@/lib/firebase/config");
+    if (!messaging) return null;
+    const token = await getToken(messaging, {
+      vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+    });
+    if (token) {
+      const { doc, setDoc } = await import("firebase/firestore");
+      const { db, auth } = await import("@/lib/firebase/config");
+      const user = auth.currentUser;
+      if (user) {
+        await setDoc(doc(db, "fcmTokens", user.uid), {
+          token,
+          organizationId,
+          userId: user.uid,
+          updatedAt: new Date(),
+        });
+      }
+    }
+    return token;
+  } catch (err) {
+    console.error("Notification permission error:", err);
+    return null;
+  }
+}
+
+Create public/firebase-messaging-sw.js service worker:
+importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js");
+
+firebase.initializeApp({
+  apiKey: self.FIREBASE_API_KEY,
+  authDomain: self.FIREBASE_AUTH_DOMAIN,
+  projectId: self.FIREBASE_PROJECT_ID,
+  storageBucket: self.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: self.FIREBASE_MESSAGING_SENDER_ID,
+  appId: self.FIREBASE_APP_ID,
+});
+
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+  const { title, body } = payload.notification || {};
+  self.registration.showNotification(title || "FaslBook", {
+    body: body || "",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    data: payload.data,
+  });
+});
+
+Add notification permission request in app/(dashboard)/overview/page.tsx useEffect:
+import { requestNotificationPermission } from "@/lib/firebase/config";
+
+useEffect(() => {
+  if (orgId && "Notification" in window && Notification.permission === "default") {
+    setTimeout(() => {
+      requestNotificationPermission(orgId);
+    }, 3000);
+  }
+}, [orgId]);
+
+FEATURE 2 - Complete PWA with Service Worker for offline:
+
+Create public/sw.js - main service worker:
+const CACHE_NAME = "faslbook-v2";
+const STATIC_ASSETS = [
+  "/",
+  "/login",
+  "/overview",
+  "/manifest.json",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/logo.png",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+  if (event.request.url.includes("firestore.googleapis.com")) return;
+  if (event.request.url.includes("identitytoolkit.googleapis.com")) return;
+
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((response) => {
+        if (response.ok && response.type === "basic") {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match("/") || new Response("Offline"));
+    })
+  );
+});
+
+Register service worker in app/layout.tsx:
+Add this script tag in body:
+<script dangerouslySetInnerHTML={{
+  __html: `
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').catch(console.error);
+      });
+    }
+  `
+}} />
+
+Update public/manifest.json:
+{
+  "name": "FaslBook - Farm Operating System",
+  "short_name": "FaslBook",
+  "description": "Complete farm management system for landlords, managers, farmers and workers",
+  "start_url": "/overview",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1B5E20",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/logo.png", "sizes": "any", "type": "image/png" }
+  ],
+  "screenshots": [
+    { "src": "/screenshot.png", "sizes": "390x844", "type": "image/png" }
+  ],
+  "categories": ["business", "productivity", "agriculture"],
+  "lang": "en"
+}
+
+FEATURE 3 - Replaceable Logo and Images system:
+
+Create public folder structure for easy logo replacement:
+public/
+  logo.png          ← Main app logo (512x512) - REPLACE THIS
+  icon-192.png      ← PWA icon small (192x192) - REPLACE THIS  
+  icon-512.png      ← PWA icon large (512x512) - REPLACE THIS
+  banner.png        ← Login screen banner/illustration - REPLACE THIS
+  splash.png        ← Splash/loading screen image - REPLACE THIS
+
+Create lib/utils/assets.ts:
+// Centralized asset paths - change these to update images throughout app
+export const ASSETS = {
+  logo: "/logo.png",
+  icon192: "/icon-192.png",
+  icon512: "/icon-512.png",
+  banner: "/banner.png",
+  splash: "/splash.png",
+};
+
+Update app/(auth)/login/page.tsx to use logo from ASSETS:
+Replace the Wheat icon section with:
+import { ASSETS } from "@/lib/utils/assets";
+
+<div className="bg-white rounded-full p-2 mb-4 shadow-lg overflow-hidden w-20 h-20 flex items-center justify-center">
+  <img
+    src={ASSETS.logo}
+    alt="FaslBook Logo"
+    className="w-16 h-16 object-contain"
+    onError={(e) => {
+      e.currentTarget.style.display = "none";
+      e.currentTarget.parentElement!.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1B5E20" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg>';
+    }}
+  />
+</div>
+
+Create placeholder PNG files using canvas in a script or just create empty placeholder images. Add a README-IMAGES.md file:
+
+# FaslBook Images Guide
+
+## How to replace images:
+
+1. **App Logo** (`public/logo.png`)
+   - Size: 512x512 px
+   - Format: PNG with transparent background
+   - Used: Login screen, PWA icon
+
+2. **PWA Icon Small** (`public/icon-192.png`)
+   - Size: 192x192 px
+   - Format: PNG
+   - Used: Mobile home screen icon (small)
+
+3. **PWA Icon Large** (`public/icon-512.png`)
+   - Size: 512x512 px
+   - Format: PNG
+   - Used: Mobile home screen icon (large), splash screen
+
+4. **Login Banner** (`public/banner.png`)
+   - Size: 400x300 px
+   - Format: PNG or JPG
+   - Used: Login page illustration
+
+5. **Splash Screen** (`public/splash.png`)
+   - Size: 390x844 px (iPhone size)
+   - Format: PNG
+   - Used: PWA splash screen
+
+## Steps:
+1. Replace the files in /public folder with your images
+2. Keep the same file names
+3. Rebuild the app: npm run build
+4. Deploy to Vercel
+
+Also create simple green placeholder PNG files for icon-192.png and icon-512.png using this script.
+Create scripts/create-icons.js:
+const { createCanvas } = require("canvas");
+const fs = require("fs");
+
+function createIcon(size, filename) {
+  const canvas = createCanvas(size, size);
+  const ctx = canvas.getContext("2d");
+  
+  // Green background
+  ctx.fillStyle = "#1B5E20";
+  ctx.fillRect(0, 0, size, size);
+  
+  // White text
+  ctx.fillStyle = "white";
+  ctx.font = `bold ${size * 0.3}px Arial`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("FB", size / 2, size / 2);
+  
+  fs.writeFileSync(`public/${filename}`, canvas.toBuffer("image/png"));
+  console.log(`Created ${filename}`);
+}
+
+createIcon(192, "icon-192.png");
+createIcon(512, "icon-512.png");
+
+If canvas package not available, create simple colored PNG placeholders directly or copy icon-192.png from existing assets.
+
+Add link to manifest in app/layout.tsx head:
+<link rel="manifest" href="/manifest.json" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="FaslBook" />
+<meta name="theme-color" content="#1B5E20" />
+<meta name="mobile-web-app-capable" content="yes" />
+
+Add NEXT_PUBLIC_FIREBASE_VAPID_KEY to .env.local placeholder:
+NEXT_PUBLIC_FIREBASE_VAPID_KEY=your_vapid_key_here
+
+To get VAPID key:
+1. Go to Firebase Console
+2. Project Settings → Cloud Messaging
+3. Web Push certificates → Generate key pair
+4. Copy the key to Replit secrets as NEXT_PUBLIC_FIREBASE_VAPID_KEY
+
+Also update ConditionalTopBar to hide on all report sub-pages:
+Add to HIDE_TOPBAR array: "/reports/farm", "/reports/farmer", "/reports/worker", "/reports/dealer", "/reports/godown", "/reports/parcel"

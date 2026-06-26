@@ -1,0 +1,17 @@
+{
+  "name": "FaslBook - Farm Operating System",
+  "short_name": "FaslBook",
+  "description": "Complete farm management system for landlords, managers, farmers and workers",
+  "start_url": "/overview",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1B5E20",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "categories": ["business", "productivity", "agriculture"],
+  "lang": "en"
+}

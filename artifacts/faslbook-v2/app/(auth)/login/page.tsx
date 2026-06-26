@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
 import { Wheat, Mail, Phone, Chrome, Loader2 } from "lucide-react";
+import { ASSETS } from "@/lib/utils/assets";
 
 async function handleUserAfterAuth(
   uid: string,
@@ -121,8 +122,21 @@ export default function LoginPage() {
         className="flex flex-col items-center justify-center pt-16 pb-10 px-6"
         style={{ backgroundColor: "#1B5E20" }}
       >
-        <div className="bg-white rounded-full p-4 mb-4 shadow-lg">
-          <Wheat size={48} color="#1B5E20" />
+        <div className="bg-white rounded-full p-2 mb-4 shadow-lg overflow-hidden w-20 h-20 flex items-center justify-center">
+          <img
+            src={ASSETS.logo}
+            alt="FaslBook Logo"
+            className="w-16 h-16 object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+              const parent = e.currentTarget.parentElement;
+              if (parent) {
+                const icon = document.createElement("div");
+                icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1B5E20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/></svg>';
+                parent.appendChild(icon.firstChild!);
+              }
+            }}
+          />
         </div>
         <h1 className="text-white text-4xl font-bold tracking-wide">
           FaslBook

@@ -25,7 +25,11 @@ const PAGE_TITLE_KEYS: Record<string, string> = {
   "/notifications": "notifications",
 };
 
-const HIDE_TOPBAR = new Set(["/overview", "/"]);
+const HIDE_TOPBAR = new Set([
+  "/overview", "/",
+  "/reports/farm", "/reports/farmer", "/reports/worker",
+  "/reports/dealer", "/reports/godown", "/reports/parcel",
+]);
 
 export default function TopBar() {
   const pathname     = usePathname();
@@ -34,7 +38,11 @@ export default function TopBar() {
   const organization = useAuthStore((s) => s.organization);
   const orgId        = organization?.id ?? null;
 
-  if (HIDE_TOPBAR.has(pathname ?? "") || (pathname ?? "").startsWith("/overview")) return null;
+  if (
+    HIDE_TOPBAR.has(pathname ?? "") ||
+    (pathname ?? "").startsWith("/overview") ||
+    (pathname ?? "").startsWith("/reports/")
+  ) return null;
 
   const isMainNav = MAIN_NAV.includes(pathname);
   const titleKey  = PAGE_TITLE_KEYS[pathname] ?? "";
