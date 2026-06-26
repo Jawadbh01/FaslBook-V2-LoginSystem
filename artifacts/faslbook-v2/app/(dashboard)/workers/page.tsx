@@ -11,7 +11,7 @@ import { useAuthStore } from "@/store/authStore";
 import {
   Plus, X, Loader2, Phone, ClipboardList,
   ChevronRight, User, Wheat, CheckCircle, XCircle, Clock,
-  MapPin,
+  MapPin, Printer,
 } from "lucide-react";
 
 interface FarmerUser {
@@ -463,13 +463,23 @@ export default function WorkersPage() {
               {allFarmers.length} farmer{allFarmers.length !== 1 ? "s" : ""} · {workers.length} worker{workers.length !== 1 ? "s" : ""}
             </p>
           </div>
-          <button
-            onClick={() => router.push("/workers/attendance")}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl text-white text-xs font-semibold active:scale-95 transition-transform"
-            style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
-            <ClipboardList size={15} />
-            Attendance
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push("/reports/worker")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+              style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
+            >
+              <Printer size={14} />
+              Print
+            </button>
+            <button
+              onClick={() => router.push("/workers/attendance")}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl text-white text-xs font-semibold active:scale-95 transition-transform"
+              style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
+              <ClipboardList size={15} />
+              Attendance
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}

@@ -12,8 +12,9 @@ import { useLangStore } from "@/store/langStore";
 import {
   MapPin, Plus, Search, X, ChevronRight,
   Wheat, User, Edit3, Check,
-  Loader2, Map,
+  Loader2, Map, Printer,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface Parcel {
   id: string;
@@ -38,6 +39,7 @@ interface Farmer {
 export default function ParcelsPage() {
   const { organization, role } = useAuthStore();
   const { t } = useLangStore();
+  const router = useRouter();
   const orgId = organization?.id;
   const canEdit = role === "landlord" || role === "manager";
 
@@ -232,11 +234,21 @@ export default function ParcelsPage() {
               {parcels.length} {t(parcels.length !== 1 ? "parcels" : "parcel")} • {parcels.reduce((s, p) => s + (p.acres || 0), 0).toFixed(1)} {t("total_acres")}
             </p>
           </div>
-          {canEdit && (
-            <button onClick={() => setShowAdd(true)} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
-              <Plus size={22} color="white" />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push("/reports/parcel")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+              style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
+            >
+              <Printer size={14} />
+              Print
             </button>
-          )}
+            {canEdit && (
+              <button onClick={() => setShowAdd(true)} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
+                <Plus size={22} color="white" />
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center bg-white rounded-2xl px-4 py-3 gap-3">
           <Search size={18} color="#9E9E9E" />

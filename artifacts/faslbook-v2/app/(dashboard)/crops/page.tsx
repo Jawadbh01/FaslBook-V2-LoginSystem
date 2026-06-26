@@ -11,8 +11,9 @@ import { useAuthStore } from "@/store/authStore";
 import {
   Wheat, Plus, X, ChevronRight,
   Calendar, MapPin, User, Loader2,
-  Check, ArrowRight, Sprout,
+  Check, ArrowRight, Sprout, Printer,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 // ── Types ──────────────────────────────────────────────────────
 interface Crop {
@@ -75,6 +76,7 @@ const cropSuggestions = [
 
 export default function CropsPage() {
   const { organization, role } = useAuthStore();
+  const router = useRouter();
   const orgId = organization?.id;
   const canEdit = role === "landlord" || role === "manager";
 
@@ -485,15 +487,25 @@ export default function CropsPage() {
               {getCurrentSeason()} Season
             </p>
           </div>
-          {canEdit && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowAdd(true)}
-              className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-              style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+              onClick={() => router.push("/reports/farm")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+              style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
             >
-              <Plus size={22} color="white" />
+              <Printer size={14} />
+              Print
             </button>
-          )}
+            {canEdit && (
+              <button
+                onClick={() => setShowAdd(true)}
+                className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+              >
+                <Plus size={22} color="white" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filter Pills */}

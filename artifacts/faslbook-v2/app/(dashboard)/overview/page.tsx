@@ -448,38 +448,61 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* ── Print Picker Modal ────────────────────────────────── */}
+      {/* ── Print Picker Bottom Sheet ─────────────────────────── */}
       {showPrintPicker && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center"
-          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          className="fixed inset-0 z-50 flex flex-col justify-end"
+          style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
           onClick={() => setShowPrintPicker(false)}
         >
           <div
-            className="w-full max-w-lg bg-white rounded-t-3xl px-4 pt-5 pb-8"
+            className="bg-white rounded-t-3xl"
+            style={{ paddingBottom: "max(env(safe-area-inset-bottom), 20px)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-bold text-gray-800 text-base">Print Report</p>
-              <button onClick={() => setShowPrintPicker(false)} className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100">
-                <X size={16} color="#757575" />
-              </button>
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 rounded-full bg-gray-200" />
             </div>
-            <p className="text-gray-400 text-xs mb-4">Select which report to open and print</p>
-            <div className="grid grid-cols-2 gap-3">
-              {PRINT_REPORTS.map(({ key, label, Icon, color, bg, href }) => (
-                <button
-                  key={key}
-                  onClick={() => { setShowPrintPicker(false); router.push(href); }}
-                  className="flex items-center gap-3 p-3 rounded-2xl active:scale-95 transition-transform text-left"
-                  style={{ backgroundColor: bg }}
-                >
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/60">
-                    <Icon size={18} color={color} />
+
+            <div className="px-5 pb-4">
+              {/* Title row */}
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: "#E8F5E9" }}>
+                    <Printer size={16} color="#1B5E20" />
                   </div>
-                  <span className="text-xs font-bold leading-tight" style={{ color }}>{label}</span>
+                  <p className="font-bold text-gray-800 text-base">Print a Report</p>
+                </div>
+                <button
+                  onClick={() => setShowPrintPicker(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100"
+                >
+                  <X size={16} color="#757575" />
                 </button>
-              ))}
+              </div>
+              <p className="text-gray-400 text-xs mb-4 ml-10">Tap any section to open its printable report</p>
+
+              {/* Report list */}
+              <div className="flex flex-col gap-2">
+                {PRINT_REPORTS.map(({ key, label, Icon, color, bg, href }) => (
+                  <button
+                    key={key}
+                    onClick={() => { setShowPrintPicker(false); router.push(href); }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl active:scale-95 transition-transform w-full text-left"
+                    style={{ backgroundColor: bg }}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: "rgba(255,255,255,0.7)" }}
+                    >
+                      <Icon size={20} color={color} />
+                    </div>
+                    <span className="flex-1 text-sm font-bold" style={{ color }}>{label}</span>
+                    <ChevronRight size={16} color={color} style={{ opacity: 0.6 }} />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

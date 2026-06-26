@@ -11,8 +11,9 @@ import { runFarmerTransferWorkflow } from "@/lib/workflows/farmerTransferWorkflo
 import { categoryConfig } from "./_categoryConfig";
 import {
   ArrowLeft, Plus, X, ArrowDownToLine, ArrowUpFromLine,
-  Users, Loader2, CheckCircle, Package, Layers,
+  Users, Loader2, CheckCircle, Package, Layers, Printer,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 // ── Types ──────────────────────────────────────────────────────
 interface InventoryItem {
@@ -45,6 +46,7 @@ const catEmoji: Record<string, string> = {
 
 export default function GodownPage() {
   const { organization, role } = useAuthStore();
+  const router = useRouter();
   const orgId = organization?.id;
   const canEdit = role === "landlord" || role === "manager";
 
@@ -478,13 +480,23 @@ export default function GodownPage() {
       <div className="px-4 pt-12 pb-5" style={{ backgroundColor: "#1B5E20" }}>
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-white text-2xl font-bold">Godown</h1>
-          {canEdit && (
-            <button onClick={() => setView("addItem")}
-              className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-              style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
-              <Plus size={22} color="white" />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push("/reports/godown")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+              style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
+            >
+              <Printer size={14} />
+              Print
             </button>
-          )}
+            {canEdit && (
+              <button onClick={() => setView("addItem")}
+                className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
+                <Plus size={22} color="white" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Total inventory value card */}
