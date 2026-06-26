@@ -29,6 +29,7 @@ const HIDE_TOPBAR = new Set([
   "/overview", "/",
   "/reports/farm", "/reports/farmer", "/reports/worker",
   "/reports/dealer", "/reports/godown", "/reports/parcel",
+  "/reports/ledger", "/reports/crops",
 ]);
 
 export default function TopBar() {

@@ -489,7 +489,7 @@ export default function CropsPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => router.push("/reports/farm")}
+              onClick={() => router.push("/reports/crops")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
               style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
             >

@@ -50,6 +50,8 @@ const getGreeting = (): "good_morning" | "good_afternoon" | "good_evening" => {
 
 const PRINT_REPORTS = [
   { key: "farm",    label: "Farm Overview",  Icon: BarChart2,  color: "#1B5E20", bg: "#E8F5E9",  href: "/reports/farm" },
+  { key: "ledger",  label: "Khata Report",   Icon: TrendingUp, color: "#1B5E20", bg: "#E8F5E9",  href: "/reports/ledger" },
+  { key: "crops",   label: "Crops Report",   Icon: Wheat,      color: "#33691E", bg: "#F1F8E9",  href: "/reports/crops" },
   { key: "farmer",  label: "Farmer Report",  Icon: User,       color: "#1565C0", bg: "#E3F2FD",  href: "/reports/farmer" },
   { key: "worker",  label: "Worker Report",  Icon: Clock,      color: "#E65100", bg: "#FFF3E0",  href: "/reports/worker" },
   { key: "dealer",  label: "Dealer Report",  Icon: Handshake,  color: "#6A1B9A", bg: "#F3E5F5",  href: "/reports/dealer" },
