@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"app/(dashboard)/ledger/page.tsx -> firebase/firestore\":{\"id\":\"app/(dashboard)/ledger/page.tsx -> firebase/firestore\",\"files\":[]},\"components/shared/SyncIndicator.tsx -> firebase/firestore\":{\"id\":\"components/shared/SyncIndicator.tsx -> firebase/firestore\",\"files\":[]}}"
