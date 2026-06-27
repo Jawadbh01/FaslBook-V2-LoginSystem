@@ -1,0 +1,525 @@
+Fix the offline system completely for FaslBook. Currently the app reloads when offline and loses auth. Fix everything.
+
+PROBLEM 1 - Auth logs out when offline:
+Firebase onAuthStateChanged fires with null when offline because it cannot reach servers.
+This causes AuthProvider to redirect to /login when user is actually logged in.
+
+Fix in components/shared/AuthProvider.tsx:
+Add a check - if Firebase returns null user but we have cached user in localStorage, do NOT redirect to login.
+Store user data in localStorage when user logs in successfully.
+On app load, check localStorage first before waiting for Firebase.
+
+Replace entire AuthProvider.tsx with this:
+
+"use client";
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/config";
+import { useAuthStore } from "@/store/authStore";
+
+const PUBLIC = ["/login", "/email", "/register", "/create-farm", "/role-select", "/join-farm", "/pending"];
+const CACHE_KEY = "faslbook_user_cache";
+const ORG_KEY = "faslbook_org_cache";
+
+function saveToCache(user: any, org: any, role: string) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      role,
+    }));
+    if (org) localStorage.setItem(ORG_KEY, JSON.stringify(org));
+  } catch {}
+}
+
+function loadFromCache() {
+  try {
+    const user = localStorage.getItem(CACHE_KEY);
+    const org = localStorage.getItem(ORG_KEY);
+    return {
+      user: user ? JSON.parse(user) : null,
+      org: org ? JSON.parse(org) : null,
+    };
+  } catch {
+    return { user: null, org: null };
+  }
+}
+
+function clearCache() {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(ORG_KEY);
+  } catch {}
+}
+
+export default function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { setUser, setOrganization, setRole, setLoading } = useAuthStore();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    // Step 1: Immediately load from cache so app shows content instantly
+    const { user: cachedUser, org: cachedOrg } = loadFromCache();
+    const path = window.location.pathname;
+
+    if (cachedUser) {
+      // User is cached - show content immediately without waiting for Firebase
+      setUser(cachedUser as any);
+      setRole(cachedUser.role);
+      if (cachedOrg) setOrganization(cachedOrg);
+      setLoading(false);
+      setReady(true);
+
+      // If on public page, redirect to dashboard
+      if (PUBLIC.includes(path)) {
+        window.location.replace("/overview");
+      }
+    } else {
+      // No cache - check if on protected page
+      if (!PUBLIC.includes(path)) {
+        window.location.replace("/login");
+        return;
+      }
+      setReady(true);
+    }
+
+    // Step 2: Background Firebase auth check (does not block UI)
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // User is logged in - update cache with fresh data
+        try {
+          const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+
+          if (!userSnap.exists()) {
+            if (!PUBLIC.includes(path)) window.location.replace("/role-select");
+            return;
+          }
+
+          const userData = userSnap.data();
+          setRole(userData.role);
+
+          if (!userData.role) {
+            if (!PUBLIC.includes(path)) window.location.replace("/role-select");
+            return;
+          }
+
+          if (!userData.organizationId) {
+            if (userData.role === "landlord" && path !== "/create-farm") {
+              window.location.replace("/create-farm");
+            } else if (userData.role !== "landlord" && path !== "/join-farm" && path !== "/pending") {
+              window.location.replace("/join-farm");
+            }
+            return;
+          }
+
+          const orgSnap = await getDoc(doc(db, "organizations", userData.organizationId));
+          const orgData = orgSnap.exists() ? orgSnap.data() : null;
+          if (orgData) setOrganization(orgData as any);
+
+          // Save fresh data to cache
+          saveToCache(firebaseUser, orgData, userData.role);
+          setUser(firebaseUser);
+          setLoading(false);
+          setReady(true);
+
+          if (PUBLIC.includes(path)) {
+            window.location.replace("/overview");
+          }
+
+        } catch (error) {
+          // Network error - already loaded from cache, just continue
+          console.log("Firebase offline - using cached data");
+          setLoading(false);
+          setReady(true);
+        }
+
+      } else {
+        // Firebase says no user
+        // Check if we have cached user (means we are offline, not actually logged out)
+        const { user: cached } = loadFromCache();
+        if (cached) {
+          // We have cache - user is probably offline, do NOT logout
+          console.log("Offline detected - keeping cached auth");
+          setLoading(false);
+          setReady(true);
+          return;
+        }
+
+        // No cache and no Firebase user - truly logged out
+        clearCache();
+        setUser(null);
+        setOrganization(null);
+        setRole(null);
+        setLoading(false);
+        setReady(true);
+        if (!PUBLIC.includes(path)) {
+          window.location.replace("/login");
+        }
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  if (!ready) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "white",
+        gap: "16px"
+      }}>
+        <img src="/logo.png" alt="FaslBook"
+          style={{ width: 80, height: 80, objectFit: "contain", borderRadius: 16 }}
+          onError={(e) => { e.currentTarget.style.display = "none"; }}
+        />
+        <div style={{
+          width: "40px",
+          height: "40px",
+          borderRadius: "50%",
+          border: "4px solid #e5e7eb",
+          borderTopColor: "#1B5E20",
+          animation: "spin 0.8s linear infinite"
+        }} />
+        <p style={{ color: "#9ca3af", fontSize: "14px" }}>Loading FaslBook...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+PROBLEM 2 - Firestore data not available offline:
+The initializeFirestore with persistentLocalCache is correct but needs proper setup.
+
+Update lib/firebase/config.ts with this exact code:
+
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  CACHE_SIZE_UNLIMITED,
+} from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+export const auth = getAuth(app);
+
+export const db = (() => {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+      }),
+    });
+  } catch {
+    const { getFirestore } = require("firebase/firestore");
+    return getFirestore(app);
+  }
+})();
+
+export const storage = getStorage(app);
+export default app;
+
+PROBLEM 3 - Service worker not caching pages properly:
+
+Replace public/sw.js with this complete version:
+
+const CACHE_NAME = "faslbook-v2-cache";
+const STATIC_CACHE = "faslbook-static-v2";
+
+const STATIC_ASSETS = [
+  "/",
+  "/overview",
+  "/login",
+  "/manifest.json",
+  "/icon-192.png",
+  "/icon-512.png",
+];
+
+// Install - cache static assets
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(STATIC_CACHE).then((cache) => {
+      return cache.addAll(STATIC_ASSETS).catch((err) => {
+        console.log("Cache addAll partial error:", err);
+      });
+    })
+  );
+  self.skipWaiting();
+});
+
+// Activate - clean old caches
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE)
+          .map((k) => caches.delete(k))
+      )
+    )
+  );
+  self.clients.claim();
+});
+
+// Fetch - serve from cache first, network as fallback
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+
+  // Skip non-GET requests
+  if (request.method !== "GET") return;
+
+  // Skip Firebase API calls - let Firebase SDK handle offline
+  if (
+    request.url.includes("firestore.googleapis.com") ||
+    request.url.includes("identitytoolkit.googleapis.com") ||
+    request.url.includes("securetoken.googleapis.com") ||
+    request.url.includes("firebase.googleapis.com") ||
+    request.url.includes("storage.googleapis.com")
+  ) {
+    return;
+  }
+
+  // For Next.js pages - network first, cache fallback
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(() => {
+          return caches.match(request).then((cached) => {
+            if (cached) return cached;
+            return caches.match("/overview") || caches.match("/");
+          });
+        })
+    );
+    return;
+  }
+
+  // For static assets - cache first, network fallback
+  if (
+    request.url.includes("/_next/static") ||
+    request.url.includes(".png") ||
+    request.url.includes(".jpg") ||
+    request.url.includes(".ico") ||
+    request.url.includes(".svg") ||
+    request.url.includes(".woff") ||
+    request.url.includes(".css")
+  ) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+});
+
+// Handle push notifications
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  const data = event.data.json();
+  const { title, body, icon, data: notifData } = data;
+
+  event.waitUntil(
+    self.registration.showNotification(title || "FaslBook", {
+      body: body || "",
+      icon: icon || "/icon-192.png",
+      badge: "/icon-192.png",
+      data: notifData || {},
+      vibrate: [200, 100, 200],
+      requireInteraction: false,
+    })
+  );
+});
+
+// Handle notification click
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: "window" }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes("/overview") && "focus" in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow("/overview");
+      }
+    })
+  );
+});
+
+PROBLEM 4 - App keeps reloading when offline:
+In next.config.js add:
+
+const nextConfig = {
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
+  images: {
+    domains: ["firebasestorage.googleapis.com"],
+    unoptimized: false,
+  },
+  // Prevent automatic reloads
+  onDemandEntries: {
+    maxInactiveAge: 60 * 60 * 1000,
+    pagesBufferLength: 10,
+  },
+};
+module.exports = nextConfig;
+
+PROBLEM 5 - Sign out should clear cache properly:
+In app/(dashboard)/profile/page.tsx find the sign out button handler.
+Replace with:
+
+const handleSignOut = async () => {
+  try {
+    // Clear localStorage cache first
+    localStorage.removeItem("faslbook_user_cache");
+    localStorage.removeItem("faslbook_org_cache");
+    localStorage.removeItem("faslbook_last_sync");
+    // Clear all caches
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    // Unregister service worker
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.unregister();
+      }
+    }
+    // Sign out from Firebase
+    await signOut(auth);
+    window.location.replace("/login");
+  } catch (err) {
+    console.error("Sign out error:", err);
+    window.location.replace("/login");
+  }
+};
+
+PROBLEM 6 - Register service worker properly:
+In app/layout.tsx replace the service worker registration script with:
+
+<script dangerouslySetInnerHTML={{
+  __html: `
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then(function(reg) {
+            console.log('SW registered');
+            reg.addEventListener('updatefound', function() {
+              const newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', function() {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('New SW available');
+                  }
+                });
+              }
+            });
+          })
+          .catch(function(err) {
+            console.log('SW registration failed:', err);
+          });
+      });
+    }
+  `
+}} />
+
+PROBLEM 7 - Zustand store should persist to localStorage:
+Update store/authStore.ts to use zustand persist middleware:
+
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { User } from "firebase/auth";
+
+interface Organization {
+  id: string;
+  farmId: string;
+  name: string;
+  village: string;
+  district: string;
+  province: string;
+  landlordId: string;
+}
+
+interface AuthState {
+  user: User | null;
+  organization: Organization | null;
+  role: "landlord" | "manager" | "farmer" | "worker" | null;
+  loading: boolean;
+  setUser: (user: User | null) => void;
+  setOrganization: (org: Organization | null) => void;
+  setRole: (role: AuthState["role"]) => void;
+  setLoading: (loading: boolean) => void;
+  reset: () => void;
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      organization: null,
+      role: null,
+      loading: true,
+      setUser: (user) => set({ user }),
+      setOrganization: (organization) => set({ organization }),
+      setRole: (role) => set({ role }),
+      setLoading: (loading) => set({ loading }),
+      reset: () => set({ user: null, organization: null, role: null, loading: false }),
+    }),
+    {
+      name: "faslbook-auth",
+      partialState: (state) => ({
+        organization: state.organization,
+        role: state.role,
+      }),
+    }
+  )
+);
+
+FINAL CHECKLIST:
+After all changes:
+1. User logs in → credentials saved to localStorage AND Firestore persistence cache
+2. User closes app → data stays in cache
+3. User opens app offline → loads from cache immediately, no redirect to login
+4. All Firestore data loads from local cache when offline
+5. When internet returns → Firestore auto-syncs in background
+6. Sign out clears ALL cache properly
+7. Service worker caches all pages and static assets
+8. No automatic reloads when offline
+
+Do not break any existing functionality. Only fix the offline system.

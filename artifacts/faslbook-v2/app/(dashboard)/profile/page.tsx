@@ -88,10 +88,31 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
+      // Clear localStorage cache first
+      localStorage.removeItem("faslbook_user_cache");
+      localStorage.removeItem("faslbook_org_cache");
+      localStorage.removeItem("faslbook_last_sync");
+      localStorage.removeItem("faslbook-auth");
+
+      // Clear all SW caches
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+
+      // Unregister service worker so it re-installs fresh after next login
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      }
+
       await signOut(auth);
       window.location.replace("/login");
-    } catch {
-      setLoggingOut(false);
+    } catch (err) {
+      console.error("Sign out error:", err);
+      window.location.replace("/login");
     }
   };
 

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { User } from "firebase/auth";
 
 interface Organization {
@@ -23,22 +24,26 @@ interface AuthState {
   reset: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  organization: null,
-  role: null,
-  loading: true,
-
-  setUser: (user) => set({ user }),
-  setOrganization: (organization) => set({ organization }),
-  setRole: (role) => set({ role }),
-  setLoading: (loading) => set({ loading }),
-
-  reset: () =>
-    set({
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
       user: null,
       organization: null,
       role: null,
-      loading: false,
+      loading: true,
+      setUser:         (user)         => set({ user }),
+      setOrganization: (organization) => set({ organization }),
+      setRole:         (role)         => set({ role }),
+      setLoading:      (loading)      => set({ loading }),
+      reset: () => set({ user: null, organization: null, role: null, loading: false }),
     }),
-}));
+    {
+      name: "faslbook-auth",
+      // Only persist org + role — User is a Firebase object that can't be JSON-serialised cleanly
+      partialize: (state) => ({
+        organization: state.organization,
+        role:         state.role,
+      }),
+    }
+  )
+);

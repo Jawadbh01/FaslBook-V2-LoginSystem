@@ -4,6 +4,7 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  CACHE_SIZE_UNLIMITED,
   getFirestore,
 } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -26,6 +27,7 @@ export const db = (() => {
     return initializeFirestore(app, {
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager(),
+        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
       }),
     });
   } catch {
@@ -35,7 +37,7 @@ export const db = (() => {
 
 export const storage = getStorage(app);
 
-// ── FCM: only in browser ──────────────────────────────────────────
+// ── FCM: only in browser ───────────────────────────────────────────────────
 export async function requestNotificationPermission(organizationId: string): Promise<string | null> {
   if (typeof window === "undefined" || !("Notification" in window)) return null;
   try {
@@ -57,7 +59,6 @@ export async function requestNotificationPermission(organizationId: string): Pro
           userId: user.uid,
           updatedAt: new Date(),
         });
-        // Post Firebase config to service worker so it can init messaging
         if ("serviceWorker" in navigator) {
           const reg = await navigator.serviceWorker.ready;
           reg.active?.postMessage({ type: "FIREBASE_CONFIG", config: firebaseConfig });

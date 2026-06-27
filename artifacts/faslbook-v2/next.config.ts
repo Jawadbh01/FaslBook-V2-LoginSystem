@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
     "*.repl.co",
     "*.replit.app",
   ],
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "firebasestorage.googleapis.com" },
+    ],
+  },
 };
 
 export default nextConfig;
