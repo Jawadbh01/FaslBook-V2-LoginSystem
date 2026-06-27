@@ -1,4 +1,16 @@
 {
+  "app/(dashboard)/ledger/page.tsx -> firebase/firestore": {
+    "id": "app/(dashboard)/ledger/page.tsx -> firebase/firestore",
+    "files": []
+  },
+  "app/(dashboard)/overview/page.tsx -> @/lib/firebase/config": {
+    "id": "app/(dashboard)/overview/page.tsx -> @/lib/firebase/config",
+    "files": []
+  },
+  "components/shared/SyncIndicator.tsx -> firebase/firestore": {
+    "id": "components/shared/SyncIndicator.tsx -> firebase/firestore",
+    "files": []
+  },
   "lib/firebase/config.ts -> firebase/firestore": {
     "id": "lib/firebase/config.ts -> firebase/firestore",
     "files": []
