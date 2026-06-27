@@ -1,28 +1,39 @@
-const CACHE_NAME   = "faslbook-v2-cache";
-const STATIC_CACHE = "faslbook-static-v2";
+// FaslBook Service Worker
+// Strategy:
+//   - Navigation (HTML pages)  → network-first, cache 200 OK responses, serve cache when offline
+//   - Next.js static chunks    → cache-first, network fallback
+//   - Firebase API calls       → bypass entirely (Firebase SDK manages its own offline queue)
+//   - Everything else          → network-first, cache 200 OK
 
-const STATIC_ASSETS = [
-  "/",
-  "/overview",
-  "/login",
+const CACHE_NAME   = "faslbook-pages-v3";
+const STATIC_CACHE = "faslbook-static-v3";
+
+// Only cache true static files at install time — NOT SSR pages (they redirect or need auth)
+const INSTALL_ASSETS = [
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",
+  "/logo.png",
 ];
 
-// ── Install: cache static assets ──────────────────────────────────────────
+// ── Install ────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) =>
-      cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.log("SW cache addAll partial error:", err);
-      })
+      Promise.allSettled(
+        INSTALL_ASSETS.map((url) =>
+          fetch(url).then((res) => {
+            if (res.ok) return cache.put(url, res);
+          }).catch(() => {})
+        )
+      )
     )
   );
+  // Take control immediately — don't wait for old SW to release
   self.skipWaiting();
 });
 
-// ── Activate: clean up old caches ─────────────────────────────────────────
+// ── Activate ───────────────────────────────────────────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -36,80 +47,134 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// ── Fetch: serve from cache, fall back to network ─────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
+function isFirebaseUrl(url) {
+  return (
+    url.includes("firestore.googleapis.com") ||
+    url.includes("identitytoolkit.googleapis.com") ||
+    url.includes("securetoken.googleapis.com") ||
+    url.includes("firebase.googleapis.com") ||
+    url.includes("storage.googleapis.com") ||
+    url.includes("firebaseio.com") ||
+    url.includes("googleapis.com/identitytoolkit")
+  );
+}
+
+function isStaticAsset(url) {
+  return (
+    url.includes("/_next/static/") ||
+    url.includes("/_next/image") ||
+    /\.(png|jpg|jpeg|gif|webp|ico|svg|woff|woff2|ttf|eot|css)(\?|$)/.test(url)
+  );
+}
+
+// Cache a response only if it's a real successful response (not a redirect)
+function cacheResponse(cacheName, request, response) {
+  if (response && response.ok && response.status === 200) {
+    caches.open(cacheName).then((cache) => cache.put(request, response.clone()));
+  }
+}
+
+// ── Fetch ──────────────────────────────────────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+  const url = request.url;
 
+  // Only handle GET
   if (request.method !== "GET") return;
 
-  // Let Firebase SDK handle its own network requests
-  if (
-    request.url.includes("firestore.googleapis.com") ||
-    request.url.includes("identitytoolkit.googleapis.com") ||
-    request.url.includes("securetoken.googleapis.com") ||
-    request.url.includes("firebase.googleapis.com") ||
-    request.url.includes("storage.googleapis.com")
-  ) {
+  // Let Firebase manage its own requests (it has built-in offline support)
+  if (isFirebaseUrl(url)) return;
+
+  // ── Next.js static assets: cache-first ──────────────────────────────────
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          cacheResponse(STATIC_CACHE, request, response);
+          return response;
+        });
+      })
+    );
     return;
   }
 
-  // Navigation: network first, cache fallback
+  // ── Navigation (HTML pages): network-first, cache fallback ───────────────
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          // Only cache real 200 OK HTML — not redirects (302) or errors
+          cacheResponse(CACHE_NAME, request, response);
           return response;
         })
-        .catch(() =>
-          caches.match(request).then((cached) =>
-            cached || caches.match("/overview") || caches.match("/")
-          )
-        )
+        .catch(async () => {
+          // Offline — try exact URL first, then strip query params, then any cached page
+          const exact = await caches.match(request);
+          if (exact) return exact;
+
+          const stripped = await caches.match(request.url.split("?")[0]);
+          if (stripped) return stripped;
+
+          // Last resort: serve the overview page (the "app shell")
+          const overview = await caches.match("/overview");
+          if (overview) return overview;
+
+          // Nothing cached at all — return a minimal offline page
+          return new Response(
+            `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FaslBook — Offline</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column;
+           align-items: center; justify-content: center; min-height: 100vh;
+           background: #fff; color: #374151; text-align: center; gap: 16px; }
+    h1 { font-size: 20px; margin: 0; }
+    p  { font-size: 14px; color: #6b7280; margin: 0; }
+    button { margin-top: 8px; padding: 10px 24px; background: #1B5E20; color: #fff;
+             border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>You're offline</h1>
+  <p>FaslBook couldn't connect. Please check your internet connection.</p>
+  <button onclick="window.location.reload()">Try Again</button>
+</body>
+</html>`,
+            { status: 200, headers: { "Content-Type": "text/html" } }
+          );
+        })
     );
     return;
   }
 
-  // Static assets: cache first, network fallback
-  if (
-    request.url.includes("/_next/static") ||
-    request.url.includes(".png") ||
-    request.url.includes(".jpg") ||
-    request.url.includes(".ico") ||
-    request.url.includes(".svg") ||
-    request.url.includes(".woff") ||
-    request.url.includes(".css")
-  ) {
-    event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((response) => {
-            if (response.ok) {
-              const clone = response.clone();
-              caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
-            }
-            return response;
-          })
-      )
-    );
-    return;
-  }
+  // ── All other GET requests: network-first, cache fallback ────────────────
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        cacheResponse(CACHE_NAME, request, response);
+        return response;
+      })
+      .catch(() => caches.match(request))
+  );
 });
 
 // ── Push notifications ─────────────────────────────────────────────────────
 self.addEventListener("push", (event) => {
   if (!event.data) return;
-  const data = event.data.json();
-  const { title, body, icon, data: notifData } = data;
+  let data = {};
+  try { data = event.data.json(); } catch {}
 
   event.waitUntil(
-    self.registration.showNotification(title || "FaslBook", {
-      body:               body || "",
-      icon:               icon || "/icon-192.png",
+    self.registration.showNotification(data.title || "FaslBook", {
+      body:               data.body  || "",
+      icon:               data.icon  || "/icon-192.png",
       badge:              "/icon-192.png",
-      data:               notifData || {},
+      data:               data.data  || {},
       vibrate:            [200, 100, 200],
       requireInteraction: false,
     })
@@ -120,11 +185,9 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(
-    clients.matchAll({ type: "window" }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes("/overview") && "focus" in client) {
-          return client.focus();
-        }
+    clients.matchAll({ type: "window" }).then((list) => {
+      for (const c of list) {
+        if ("focus" in c) return c.focus();
       }
       if (clients.openWindow) return clients.openWindow("/overview");
     })

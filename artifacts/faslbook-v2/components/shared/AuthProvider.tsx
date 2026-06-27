@@ -9,7 +9,7 @@ const PUBLIC = ["/login", "/email", "/register", "/create-farm", "/role-select",
 const CACHE_KEY = "faslbook_user_cache";
 const ORG_KEY   = "faslbook_org_cache";
 
-function saveToCache(user: any, org: any, role: string) {
+export function saveToCache(user: any, org: any, role: string) {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({
       uid: user.uid,
@@ -19,6 +19,15 @@ function saveToCache(user: any, org: any, role: string) {
       role,
     }));
     if (org) localStorage.setItem(ORG_KEY, JSON.stringify(org));
+    localStorage.setItem("faslbook_last_sync", Date.now().toString());
+  } catch {}
+}
+
+export function clearCache() {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(ORG_KEY);
+    localStorage.removeItem("faslbook_last_sync");
   } catch {}
 }
 
@@ -35,51 +44,54 @@ function loadFromCache() {
   }
 }
 
-function clearCache() {
-  try {
-    localStorage.removeItem(CACHE_KEY);
-    localStorage.removeItem(ORG_KEY);
-    localStorage.removeItem("faslbook_last_sync");
-  } catch {}
-}
-
-export { saveToCache, clearCache };
-
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setUser, setOrganization, setRole, setLoading } = useAuthStore();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const path = window.location.pathname;
+    let settled = false;
 
-    // ── Step 1: Load from cache immediately so the app shows content without delay
-    const { user: cachedUser, org: cachedOrg } = loadFromCache();
-
-    if (cachedUser) {
-      setUser(cachedUser as any);
-      setRole(cachedUser.role);
-      if (cachedOrg) setOrganization(cachedOrg);
-      setLoading(false);
-      setReady(true);
-      if (PUBLIC.includes(path)) {
-        window.location.replace("/overview");
+    function resolveFromCache(redirect = true) {
+      const { user: cu, org: co } = loadFromCache();
+      if (cu) {
+        setUser(cu as any);
+        setRole(cu.role);
+        if (co) setOrganization(co as any);
+        setLoading(false);
+        setReady(true);
+        if (redirect && PUBLIC.includes(path)) window.location.replace("/overview");
+      } else {
+        setLoading(false);
+        setReady(true);
+        if (redirect && !PUBLIC.includes(path)) window.location.replace("/login");
       }
-    } else {
-      if (!PUBLIC.includes(path)) {
-        window.location.replace("/login");
-        return;
-      }
-      setReady(true);
     }
 
-    // ── Step 2: Background Firebase auth check — does NOT block the UI
+    // ── Offline / slow-network timeout ────────────────────────────────────
+    // If Firebase hasn't responded in 5 s, fall back to localStorage cache.
+    // This handles: expired token + offline, slow connection, Firebase outage.
+    const offlineTimer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      console.log("[Auth] Firebase timeout — falling back to cache");
+      resolveFromCache();
+    }, 5000);
+
+    // ── Firebase auth listener ────────────────────────────────────────────
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (settled) return;
+
       if (firebaseUser) {
         try {
           const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
 
           if (!userSnap.exists()) {
-            if (!PUBLIC.includes(path)) window.location.replace("/role-select");
+            settled = true;
+            clearTimeout(offlineTimer);
+            setLoading(false);
+            setReady(true);
+            if (path !== "/role-select") window.location.replace("/role-select");
             return;
           }
 
@@ -87,11 +99,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setRole(userData.role);
 
           if (!userData.role) {
-            if (!PUBLIC.includes(path)) window.location.replace("/role-select");
+            settled = true;
+            clearTimeout(offlineTimer);
+            setLoading(false);
+            setReady(true);
+            if (path !== "/role-select") window.location.replace("/role-select");
             return;
           }
 
           if (!userData.organizationId) {
+            settled = true;
+            clearTimeout(offlineTimer);
+            setLoading(false);
+            setReady(true);
             if (userData.role === "landlord" && path !== "/create-farm") {
               window.location.replace("/create-farm");
             } else if (userData.role !== "landlord" && path !== "/join-farm" && path !== "/pending") {
@@ -104,47 +124,63 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           const orgData = orgSnap.exists() ? orgSnap.data() : null;
           if (orgData) setOrganization(orgData as any);
 
+          // Persist everything to localStorage so offline works
           saveToCache(firebaseUser, orgData, userData.role);
           setUser(firebaseUser);
+
+          settled = true;
+          clearTimeout(offlineTimer);
           setLoading(false);
           setReady(true);
 
-          if (PUBLIC.includes(path)) {
-            window.location.replace("/overview");
-          }
+          if (PUBLIC.includes(path)) window.location.replace("/overview");
 
         } catch {
-          // Network error — cache is already loaded, just continue
-          console.log("Firebase offline — using cached auth");
-          setLoading(false);
-          setReady(true);
+          // Firestore network error (offline) — Firebase auth is fine though
+          // Fall back to localStorage cache
+          console.log("[Auth] Firestore offline — using cache");
+          settled = true;
+          clearTimeout(offlineTimer);
+          resolveFromCache(false); // already authenticated, no redirect needed
         }
 
       } else {
-        // Firebase returned null user.
-        // If we have a cached user it means we are OFFLINE, not logged out — do NOT redirect.
+        // Firebase returned null — could be genuinely logged out OR offline with expired token
         const { user: cached } = loadFromCache();
+
         if (cached) {
-          console.log("Offline detected — keeping cached auth");
+          // We have a cache → user was previously authenticated.
+          // Treat this as offline mode, not logout.
+          console.log("[Auth] Firebase null + cache found → offline mode");
+          settled = true;
+          clearTimeout(offlineTimer);
+          setUser(cached as any);
+          setRole(cached.role);
+          const { org: co } = loadFromCache();
+          if (co) setOrganization(co as any);
           setLoading(false);
           setReady(true);
+          // Do NOT redirect — user is still "logged in" offline
           return;
         }
 
-        // No cache and no Firebase user → genuinely logged out
+        // No cache + no Firebase user = genuinely logged out
+        settled = true;
+        clearTimeout(offlineTimer);
         clearCache();
         setUser(null);
         setOrganization(null);
         setRole(null);
         setLoading(false);
         setReady(true);
-        if (!PUBLIC.includes(path)) {
-          window.location.replace("/login");
-        }
+        if (!PUBLIC.includes(path)) window.location.replace("/login");
       }
     });
 
-    return () => unsub();
+    return () => {
+      clearTimeout(offlineTimer);
+      unsub();
+    };
   }, []);
 
   if (!ready) {
